@@ -14,10 +14,11 @@ const TOKEN_KEY = "sanskriti_token";
 
 /**
  * Minimal API client for the Sanskriti backend.
- * Base URL comes from env; defaults to local backend.
+ * Same-origin by default: /api/v1 requests go through Next.js rewrites
+ * (next.config.mjs) to the backend — काम करता है हर domain पर, बिना CORS.
  */
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+  process.env.NEXT_PUBLIC_API_URL || "/api/v1";
 
 async function request(path, { method = "GET", body, token, ...rest } = {}) {
   const headers = { "Content-Type": "application/json", ...rest.headers };
