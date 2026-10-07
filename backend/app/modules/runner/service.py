@@ -126,17 +126,23 @@ async def launch_campaign(
         # Tenant ने चुना: शहर के आसपास | किसी खास जगह के घेरे में (सुई+घेरा)
         targeting = _parse_targeting(campaign)
         custom_locations = None
-        if targeting.get("geo_type") == "place" and targeting.get("place_name"):
-            point = await _geocode_place(targeting["place_name"], tenant.city)
-            if point:
-                custom_locations = [
-                    {**point, "radius_km": max(1, int(targeting.get("radius_km", 1)))}
-                ]
-            else:
-                logger.warning(
-                    "place %r geocode नहीं हुआ — शहर targeting पर लौटे",
-                    targeting["place_name"],
-                )
+        if targeting.get("geo_type") == "place":
+            # कई जगहें एक साथ (user की माँग 07-10: "Aakash, Dayal Singh, KV सब पर!")
+            places = targeting.get("places") or []
+            if not places and targeting.get("place_name"):  # पुराना single format
+                places = [targeting["place_name"]]
+            radius = max(1, int(targeting.get("radius_km", 1)))
+            found = []
+            for pname in places[:10]:  # अधिकतम 10 सुएँ
+                point = await _geocode_place(pname, tenant.city)
+                if point:
+                    found.append({**point, "radius_km": radius})
+                else:
+                    logger.warning("place %r geocode नहीं हुआ — छोड़ा", pname)
+            if found:
+                custom_locations = found
+            elif places:
+                logger.warning("कोई जगह नहीं मिली — शहर targeting पर लौटे")
         adset_id = await adapter.create_ad_set(
             platform_campaign_id,
             f"{campaign.name} - दर्शक",
