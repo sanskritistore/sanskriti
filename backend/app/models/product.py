@@ -55,7 +55,7 @@ class ProductPhoto(Base, TimestampMixin, TenantMixin):
         ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
     )
     # S3/स्थानीय स्टोरेज URL
-    url: Mapped[str] = mapped_column(String(512), nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
     # फ़ोटो का प्रकार - "original" | "ai_enhanced" | "ad_creative"
     photo_type: Mapped[str] = mapped_column(String(50), default="original", nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
