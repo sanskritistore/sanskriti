@@ -1,0 +1,146 @@
+"use client";
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
+
+const APIContext = createContext(null);
+
+const TOKEN_KEY = "sanskriti_token";
+
+/**
+ * Minimal API client for the Sanskriti backend.
+ * Base URL comes from env; defaults to local backend.
+ */
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
+async function request(path, { method = "GET", body, token, ...rest } = {}) {
+  const headers = { "Content-Type": "application/json", ...rest.headers };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  if (!res.ok) {
+    let message = `API error ${res.status}`;
+    try {
+      const data = await res.json();
+      message = data?.detail || data?.message || message;
+    } catch {
+      /* non-JSON error body */
+    }
+    const error = new Error(message);
+    error.status = res.status;
+    throw error;
+  }
+
+  // 204 / empty body
+  if (res.status === 204) return null;
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+/**
+ * APIProvider — holds the auth token and exposes typed helpers.
+ * Every backend call the MVP needs is one function call.
+ */
+export function APIProvider({ children }) {
+  const [token, setToken] = useState(null);
+
+  // Hydrate token on first client render
+  useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(TOKEN_KEY);
+      if (saved) setToken(saved);
+    }
+  });
+
+  const setAuthToken = useCallback((value) => {
+    setToken(value);
+    if (typeof window !== "undefined") {
+      if (value) localStorage.setItem(TOKEN_KEY, value);
+      else localStorage.removeItem(TOKEN_KEY);
+    }
+  }, []);
+
+  const api = useMemo(() => {
+    const call = (path, opts = {}) => request(path, { ...opts, token });
+
+    return {
+      // Auth — phone OTP (3 steps: send OTP → verify → in)
+      auth: {
+        sendOtp: (phone) =>
+          request("/auth/send-otp", { method: "POST", body: { phone } }),
+        verifyOtp: (phone, otp) =>
+          request("/auth/verify-otp", { method: "POST", body: { phone, otp } }),
+      },
+
+      // Business profile
+      business: {
+        get: () => call("/business"),
+        update: (data) => call("/business", { method: "PUT", body: data }),
+      },
+
+      // Products
+      products: {
+        list: () => call("/products"),
+        get: (id) => call(`/products/${id}`),
+        create: (data) => call("/products", { method: "POST", body: data }),
+        update: (id, data) =>
+          call(`/products/${id}`, { method: "PUT", body: data }),
+        delete: (id) => call(`/products/${id}`, { method: "DELETE" }),
+      },
+
+      // Ads
+      ads: {
+        list: () => call("/ads"),
+        get: (id) => call(`/ads/${id}`),
+        create: (data) => call("/ads", { method: "POST", body: data }),
+        update: (id, data) => call(`/ads/${id}`, { method: "PUT", body: data }),
+        delete: (id) => call(`/ads/${id}`, { method: "DELETE" }),
+      },
+
+      // Ad Studio — AI द्वारा विज्ञापन text बनाना
+      adStudio: {
+        generate: (data) =>
+          call("/ad-studio/generate", { method: "POST", body: data }),
+      },
+
+      // Campaigns — असली Meta पर launch होने वाली campaigns (runner)
+      campaigns: {
+        list: () => call("/campaigns"),
+        create: (data) => call("/campaigns", { method: "POST", body: data }),
+        launch: (id) => call(`/campaigns/${id}/launch`, { method: "POST" }),
+        pause: (id) => call(`/campaigns/${id}/pause`, { method: "POST" }),
+      },
+
+      // Reports — simple "₹X spent → Y customers"
+      reports: {
+        summary: () => call("/reports/summary"),
+      },
+
+      // Token management
+      token,
+      setAuthToken,
+      logout: () => setAuthToken(null),
+    };
+  }, [token, setAuthToken]);
+
+  return <APIContext.Provider value={api}>{children}</APIContext.Provider>;
+}
+
+export function useAPI() {
+  const ctx = useContext(APIContext);
+  if (!ctx) {
+    throw new Error("useAPI must be used within <APIProvider>");
+  }
+  return ctx;
+}

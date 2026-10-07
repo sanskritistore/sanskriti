@@ -1,0 +1,70 @@
+# संस्कृति बैकएंड - Docker Compose (डेवलपमेंट)
+#
+# उपयोग:
+#   docker compose up --build
+#
+# सेवाएँ:
+#   api     - FastAPI एप्लीकेशन (हॉट-रीलोड के साथ)
+#   db      - PostgreSQL डेटाबेस
+#   redis   - Redis (कैश + Celery ब्रोकर)
+#   worker  - Celery वर्कर (पृष्ठभूमि कार्य)
+
+services:
+  # FastAPI एप्लीकेशन
+  api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app  # हॉट-रीलोड - कोड बदलते ही सर्वर रीस्टार्ट
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    # डेटाबेस तैयार होने पर माइग्रेशन चलाएँ
+    # (असली प्रवाह में: alembic upgrade head && uvicorn ...)
+
+  # PostgreSQL डेटाबेस
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sanskriti
+      POSTGRES_PASSWORD: sanskriti
+      POSTGRES_DB: sanskriti
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sanskriti"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis - कैश और Celery ब्रोकर
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  # Celery वर्कर - पृष्ठभूमि कार्य
+  worker:
+    build: .
+    command: celery -A app.workers.celery_app worker --loglevel=info
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - db
+
+volumes:
+  pgdata:
+  redisdata:

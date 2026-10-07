@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand-color: #f97316;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: "Noto Sans Devanagari", "Noto Sans", system-ui, sans-serif;
+}
+
+/* Mobile-first: larger touch targets for non-technical users */
+@layer components {
+  .btn {
+    @apply inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-5 py-3 text-base font-semibold transition-colors active:scale-[0.98];
+  }
+  .btn-primary {
+    @apply btn bg-brand-500 text-white hover:bg-brand-600 disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply btn border-2 border-gray-300 bg-white text-gray-700 hover:border-brand-500 hover:text-brand-600;
+  }
+  .btn-danger {
+    @apply btn bg-hindi-danger text-white hover:opacity-90;
+  }
+  .input {
+    @apply w-full rounded-xl border-2 border-gray-300 bg-white px-4 py-3 text-base focus:border-brand-500 focus:outline-none;
+  }
+  .card {
+    @apply rounded-2xl bg-white p-4 shadow-sm ring-1 ring-gray-200;
+  }
+  .label {
+    @apply mb-2 block text-base font-semibold text-gray-700;
+  }
+}
+
+/* 3-step progress indicator (architecture rule: every action ≤ 3 steps) */
+.step-dots {
+  @apply flex items-center gap-2;
+}
+.step-dot {
+  @apply h-3 w-3 rounded-full bg-gray-300 transition-colors;
+}
+.step-dot.active {
+  @apply bg-brand-500;
+}
+.step-dot.done {
+  @apply bg-hindi-success;
+}

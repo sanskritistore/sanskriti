@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+
+# पर्यावरण (गोपनीय - कभी commit न करें)
+.env
+
+# डेटाबेस/स्टोरेज
+*.sqlite3
+uploads/
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+*.log

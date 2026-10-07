@@ -1,0 +1,28 @@
+# संस्कृति बैकएंड - निर्भरताएँ
+# (Hindi: यह फ़ाइल सभी Python पैकेज सूचीबद्ध करती है)
+
+# वेब फ्रेमवर्क
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+# डेटाबेस (PostgreSQL - async)
+sqlalchemy[asyncio]==2.0.35
+asyncpg==0.29.0
+alembic==1.13.2
+
+# प्रमाणीकरण / सुरक्षा
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# फ़ाइल अपलोड
+python-multipart==0.0.12
+
+# HTTP क्लाइंट (एडाप्टर API कॉल के लिए)
+httpx==0.27.2
+
+# पृष्ठभूमि कार्य
+celery==5.4.0
+redis==5.0.8
+
+# सेटिंग्स प्रबंधन
+pydantic-settings==2.6.0
