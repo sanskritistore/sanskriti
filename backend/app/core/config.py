@@ -73,8 +73,10 @@ class Settings(BaseSettings):
     # i18n - समर्थित भाषाएँ
     SUPPORTED_LANGUAGES: List[str] = ["hi", "en", "mr", "gu", "bn", "ta", "te"]
 
-    # डिफ़ॉल्ट ad तस्वीर (product फ़ोटो न हो तो)
-    DEFAULT_AD_IMAGE_PATH: str = "/root/workspace/sanskriti/backend/assets/default-ad-image.png"
+    # डिफ़ॉल्ट ad तस्वीर (product फ़ोटो न हो तो) — repo के अंदर, हर server पर चले
+    DEFAULT_AD_IMAGE_PATH: str = str(
+        Path(__file__).resolve().parents[2] / "assets" / "default-ad-image.png"
+    )
 
     class Config:
         env_file = ".env"
@@ -88,4 +90,3 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
-
