@@ -22,6 +22,7 @@ export default function LoginPage() {
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
+  const [devOtp, setDevOtp] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -34,7 +35,8 @@ export default function LoginPage() {
     }
     setBusy(true);
     try {
-      await api.auth.sendOtp(phone);
+      const res = await api.auth.sendOtp(phone);
+      if (res?.dev_otp) setDevOtp(res.dev_otp);
       setStep(2);
     } catch (err) {
       setError(err.message || t("login.error.generic"));
@@ -145,6 +147,12 @@ export default function LoginPage() {
               autoFocus
             />
             <p className="mt-2 text-sm text-gray-500">{t("login.otpHint")}</p>
+            {devOtp && (
+              <div className="mt-3 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 p-3 text-center">
+                <p className="text-xs text-amber-700">🔑 Testing mode — SMS बाद में आएगा, अभी OTP यहाँ है:</p>
+                <p className="mt-1 text-2xl font-bold tracking-[0.4em] text-amber-900">{devOtp}</p>
+              </div>
+            )}
           </div>
           <button type="submit" className="btn-primary w-full" disabled={busy}>
             {busy ? t("loading") : t("login.verifyOtp")}
