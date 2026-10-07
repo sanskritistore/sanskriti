@@ -254,7 +254,7 @@ async def _geocode_place(place_name: str, city_hint: str | None) -> dict | None:
     ]
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            for query in queries:
+            for idx, query in enumerate(queries):
                 resp = await client.get(
                     "https://nominatim.openstreetmap.org/search",
                     params={"q": query, "format": "json", "limit": 1,
@@ -263,6 +263,13 @@ async def _geocode_place(place_name: str, city_hint: str | None) -> dict | None:
                 )
                 results = resp.json()
                 if results:
+                    # सुरक्षा: सिर्फ़ नाम वाली (कमज़ोर) query का नतीजा दूसरे
+                    # शहर का हो सकता है (जैसे "Kendriya Vidyalaya" → Jaipur का KV!) —
+                    # शहर का नाम नतीजे में न दिखे तो स्वीकार नहीं।
+                    if idx == len(queries) - 1:
+                        display = results[0].get("display_name", "").lower()
+                        if city.lower() not in display:
+                            continue
                     return {
                         "latitude": float(results[0]["lat"]),
                         "longitude": float(results[0]["lon"]),
