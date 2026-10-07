@@ -235,25 +235,34 @@ async def _geocode_place(place_name: str, city_hint: str | None) -> dict | None:
     जगह का नाम → अक्षांश/देशांतर (सुई+घेरा targeting के लिए)।
 
     मुफ़्त Nominatim (OpenStreetMap) सेवा; शहर hint से सटीकता बढ़ती है।
+    रणनीति: लंबा query असफल हो तो छोटा करके फिर कोशिश —
+    Nominatim हर हिस्सा match न हो तो खाली लौटाता है (07-10: "Aakash
+    Institute, Connaught Place, Delhi, India" ❌ पर "Aakash Institute Delhi" ✅)।
     असफल होने पर None (फिर शहर-स्तरीय targeting पर लौटते हैं)।
     """
-    query = f"{place_name}, {city_hint or 'Delhi'}, India"
+    city = city_hint or "Delhi"
+    queries = [
+        f"{place_name}, {city}, India",
+        f"{place_name} {city}",
+        place_name,
+    ]
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                "https://nominatim.openstreetmap.org/search",
-                params={"q": query, "format": "json", "limit": 1,
-                        "countrycodes": "in"},
-                headers={"User-Agent": "SanskritiAds/1.0 (local business ads)"},
-            )
-            results = resp.json()
-            if results:
-                return {
-                    "latitude": float(results[0]["lat"]),
-                    "longitude": float(results[0]["lon"]),
-                }
+            for query in queries:
+                resp = await client.get(
+                    "https://nominatim.openstreetmap.org/search",
+                    params={"q": query, "format": "json", "limit": 1,
+                            "countrycodes": "in"},
+                    headers={"User-Agent": "SanskritiAds/1.0 (local business ads)"},
+                )
+                results = resp.json()
+                if results:
+                    return {
+                        "latitude": float(results[0]["lat"]),
+                        "longitude": float(results[0]["lon"]),
+                    }
     except Exception as exc:  # नेटवर्क/पार्स गड़बड़ी — launch नहीं रोकना
-        logger.warning("geocode failed for %r: %s", query, exc)
+        logger.warning("geocode failed for %r: %s", place_name, exc)
     return None
 
 
