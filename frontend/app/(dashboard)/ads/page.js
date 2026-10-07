@@ -6,6 +6,7 @@ import { useAPI } from "@/lib/api";
 import { formatRupees } from "@/lib/utils";
 import LanguageToggle from "@/components/ui/LanguageToggle";
 import StepDots from "@/components/ui/StepDots";
+import AdPreviewCard from "@/components/ads/AdPreviewCard";
 
 /** Preset daily budgets — simple choices, no free-form numbers */
 const BUDGET_OPTIONS = [100, 250, 500, 1000];
@@ -29,6 +30,8 @@ export default function AdsPage() {
   const [step, setStep] = useState(1);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [budget, setBudget] = useState(null);
+  const [creative, setCreative] = useState(null); // AI से बना ad text (preview में दिखता है)
+  const [previewError, setPreviewError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState(""); // कौन सा काम चल रहा है
   const [toast, setToast] = useState("");
@@ -59,17 +62,27 @@ export default function AdsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handlePublish() {
-    setBusy(true);
+  /** Step 2 → 3: AI से ad text बनवाकर PREVIEW दिखाएँ (पहले दिखेगी, फिर पैसा लगेगा) */
+  async function goToPreview() {
+    setStep(3);
+    setCreative(null);
+    setPreviewError(false);
     try {
-      // 1. AI विज्ञापन text बनवाएँ
-      setPhase(t("ads.working"));
-      const creative = await api.adStudio.generate({
+      const c = await api.adStudio.generate({
         product_id: selectedProduct.id,
         language: "hi",
       });
+      setCreative(c);
+    } catch {
+      setPreviewError(true);
+    }
+  }
 
-      // 2. Campaign बनाएँ (5 दिन का कुल बजट)
+  async function handlePublish() {
+    if (!creative) return; // preview के बिना launch नहीं
+    setBusy(true);
+    try {
+      // 1. Campaign बनाएँ (creative preview step में बन चुका है)
       setPhase(t("ads.launching"));
       const campaign = await api.campaigns.create({
         name: `${selectedProduct.name} - विज्ञापन`,
@@ -112,6 +125,8 @@ export default function AdsPage() {
     setStep(1);
     setSelectedProduct(null);
     setBudget(null);
+    setCreative(null);
+    setPreviewError(false);
   }
 
   return (
@@ -220,7 +235,7 @@ export default function AdsPage() {
                 </button>
                 <button
                   className="btn-primary flex-1"
-                  onClick={() => setStep(3)}
+                  onClick={goToPreview}
                   disabled={!budget}
                 >
                   {t("next")}
@@ -229,24 +244,49 @@ export default function AdsPage() {
             </div>
           )}
 
-          {/* STEP 3: confirm & publish */}
+          {/* STEP 3: PREVIEW — ad पहले देखो, फिर launch */}
           {step === 3 && (
             <div className="space-y-4">
               <p className="text-center font-semibold text-gray-700">
-                {t("ads.review")}
+                {t("ads.previewTitle")}
               </p>
-              <div className="rounded-xl bg-brand-50 p-4 text-center">
-                <div className="text-4xl">📣</div>
-                <p className="mt-2 text-lg font-bold">
-                  {selectedProduct?.name}
+
+              {/* AI ad बन रही है */}
+              {!creative && !previewError && (
+                <p className="py-10 text-center text-gray-500">
+                  ✨ {t("ads.working")}
                 </p>
-                <p className="text-xl font-bold text-brand-600">
-                  {formatRupees(budget)} {t("ads.daily")}
-                </p>
-                <p className="text-sm text-gray-500">
-                  {formatRupees(budget * DAYS)} · {t("ads.days5")}
-                </p>
-              </div>
+              )}
+
+              {/* बन नहीं पाई — retry */}
+              {previewError && (
+                <div className="space-y-3 py-6 text-center">
+                  <p className="text-red-600">{t("ads.previewError")}</p>
+                  <button className="btn-secondary" onClick={goToPreview}>
+                    🔄 {t("retry")}
+                  </button>
+                </div>
+              )}
+
+              {/* असली PREVIEW — Facebook जैसी ad */}
+              {creative && (
+                <>
+                  <AdPreviewCard
+                    product={selectedProduct}
+                    creative={creative}
+                  />
+                  <div className="rounded-xl bg-brand-50 p-3 text-center">
+                    <p className="font-bold text-brand-600">
+                      {formatRupees(budget)} {t("ads.daily")} ·{" "}
+                      {t("ads.days5")}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {t("ads.totalLabel")}: {formatRupees(budget * DAYS)}
+                    </p>
+                  </div>
+                </>
+              )}
+
               <div className="flex gap-2">
                 <button
                   className="btn-secondary flex-1"
@@ -258,7 +298,7 @@ export default function AdsPage() {
                 <button
                   className="btn-primary flex-1"
                   onClick={handlePublish}
-                  disabled={busy}
+                  disabled={busy || !creative}
                 >
                   {busy ? phase || t("loading") : t("ads.publish")}
                 </button>
