@@ -208,8 +208,18 @@ async def _resolve_image_path(product, creative) -> str:
     import httpx
 
     candidate = None
-    if product and getattr(product, "photo", None):
-        candidate = product.photo
+    if product:
+        # Product पर photo column नहीं — photos relationship (ProductPhoto rows) है।
+        # primary फ़ोटो चुनें, नहीं तो पहली।
+        photos = list(getattr(product, "photos", None) or [])
+        chosen = next(
+            (ph for ph in photos if getattr(ph, "is_primary", False)),
+            photos[0] if photos else None,
+        )
+        if chosen is not None:
+            candidate = chosen.url
+        elif getattr(product, "photo", None):  # पुराना data हो तो
+            candidate = product.photo
     elif creative and getattr(creative, "image_url", None):
         candidate = creative.image_url
 
