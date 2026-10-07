@@ -122,12 +122,29 @@ async def launch_campaign(
         image_path = await _resolve_image_path(product, creative)
         image_hash = await adapter.upload_ad_image(image_path)
 
-        # Ad Set: शहर + रोज़ का बजट (₹ में)
+        # Ad Set: दर्शक (जगह + उम्र) + रोज़ का बजट (₹ में)
+        # Tenant ने चुना: शहर के आसपास | किसी खास जगह के घेरे में (सुई+घेरा)
+        targeting = _parse_targeting(campaign)
+        custom_locations = None
+        if targeting.get("geo_type") == "place" and targeting.get("place_name"):
+            point = await _geocode_place(targeting["place_name"], tenant.city)
+            if point:
+                custom_locations = [
+                    {**point, "radius_km": max(1, int(targeting.get("radius_km", 1)))}
+                ]
+            else:
+                logger.warning(
+                    "place %r geocode नहीं हुआ — शहर targeting पर लौटे",
+                    targeting["place_name"],
+                )
         adset_id = await adapter.create_ad_set(
             platform_campaign_id,
             f"{campaign.name} - दर्शक",
             daily_budget_rupees=campaign.budget_daily,
             geo_city_keys=[_city_geo_key(tenant.city)],
+            age_min=int(targeting.get("age_min", 18)),
+            age_max=int(targeting.get("age_max", 65)),
+            custom_locations=custom_locations,
         )
 
         # Creative: हिंदी text + WhatsApp बटन
@@ -184,6 +201,13 @@ async def pause_campaign(
 
 # ─── Launch helpers ───────────────────────────────────────────
 
+import json
+import logging
+
+import httpx
+
+logger = logging.getLogger(__name__)
+
 # शहर का नाम → Meta geo city key (MVP: प्रमुख शहर; डिफ़ॉल्ट Delhi)
 _CITY_GEO_KEYS = {
     "delhi": "1023040", "new delhi": "1023040", "दिल्ली": "1023040",
@@ -195,6 +219,42 @@ def _city_geo_key(city: str | None) -> str:
     if not city:
         return "1023040"
     return _CITY_GEO_KEYS.get(city.strip().lower(), "1023040")
+
+
+def _parse_targeting(campaign) -> dict:
+    """कैंपेन का targeting JSON पढ़ें (खराब/खाली हो तो डिफ़ॉल्ट)।"""
+    try:
+        data = json.loads(campaign.targeting) if campaign.targeting else {}
+        return data if isinstance(data, dict) else {}
+    except (ValueError, TypeError):
+        return {}
+
+
+async def _geocode_place(place_name: str, city_hint: str | None) -> dict | None:
+    """
+    जगह का नाम → अक्षांश/देशांतर (सुई+घेरा targeting के लिए)।
+
+    मुफ़्त Nominatim (OpenStreetMap) सेवा; शहर hint से सटीकता बढ़ती है।
+    असफल होने पर None (फिर शहर-स्तरीय targeting पर लौटते हैं)।
+    """
+    query = f"{place_name}, {city_hint or 'Delhi'}, India"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": query, "format": "json", "limit": 1,
+                        "countrycodes": "in"},
+                headers={"User-Agent": "SanskritiAds/1.0 (local business ads)"},
+            )
+            results = resp.json()
+            if results:
+                return {
+                    "latitude": float(results[0]["lat"]),
+                    "longitude": float(results[0]["lon"]),
+                }
+    except Exception as exc:  # नेटवर्क/पार्स गड़बड़ी — launch नहीं रोकना
+        logger.warning("geocode failed for %r: %s", query, exc)
+    return None
 
 
 async def _resolve_image_path(product, creative) -> str:

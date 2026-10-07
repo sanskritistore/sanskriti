@@ -13,10 +13,22 @@ const BUDGET_OPTIONS = [100, 250, 500, 1000];
 const DAYS = 5; // हर campaign 5 दिन चलता है (total = daily × 5)
 
 /**
- * Ads — असली Meta campaign 3 steps में (architecture rule):
+ * उम्र के preset विकल्प — tenant को उम्र का गणित नहीं सिखाना
+ */
+const AGE_OPTIONS = [
+  { key: "all", min: 18, max: 65, labelKey: "ads.ageAll" },
+  { key: "young", min: 18, max: 25, labelKey: "ads.ageYoung" },
+  { key: "mid", min: 26, max: 40, labelKey: "ads.ageMid" },
+  { key: "senior", min: 41, max: 65, labelKey: "ads.ageSenior" },
+];
+const RADIUS_OPTIONS = [1, 2, 5]; // km — Meta का न्यूनतम घेरा 1 km
+
+/**
+ * Ads — असली Meta campaign 4 steps में:
  *   Step 1: प्रोडक्ट चुनें
  *   Step 2: रोज़ का बजट चुनें
- *   Step 3: पक्का करें → AI creative → campaign → LAUNCH (सब PAUSED Meta पर)
+ *   Step 3: दर्शक चुनें (कहाँ + किस उम्र को) — user की माँग 07-10
+ *   Step 4: PREVIEW देखें → पक्का करें → LAUNCH
  */
 export default function AdsPage() {
   const { t } = useLanguage();
@@ -30,6 +42,10 @@ export default function AdsPage() {
   const [step, setStep] = useState(1);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [budget, setBudget] = useState(null);
+  const [geoType, setGeoType] = useState("city"); // city | place
+  const [placeName, setPlaceName] = useState("");
+  const [radiusKm, setRadiusKm] = useState(1);
+  const [ageKey, setAgeKey] = useState("all");
   const [creative, setCreative] = useState(null); // AI से बना ad text (preview में दिखता है)
   const [previewError, setPreviewError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -62,9 +78,19 @@ export default function AdsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Step 2 → 3: AI से ad text बनवाकर PREVIEW दिखाएँ (पहले दिखेगी, फिर पैसा लगेगा) */
+  /** Step 3 → 4: जगह का नाम ज़रूरी है (खास जगह चुनी हो तो) */
+  function handleTargetingNext() {
+    if (geoType === "place" && !placeName.trim()) {
+      setToast(t("ads.placeNeeded"));
+      setTimeout(() => setToast(""), 3000);
+      return;
+    }
+    goToPreview();
+  }
+
+  /** Step 3 → 4: AI से ad text बनवाकर PREVIEW दिखाएँ (पहले दिखेगी, फिर पैसा लगेगा) */
   async function goToPreview() {
-    setStep(3);
+    setStep(4);
     setCreative(null);
     setPreviewError(false);
     try {
@@ -82,6 +108,15 @@ export default function AdsPage() {
     if (!creative) return; // preview के बिना launch नहीं
     setBusy(true);
     try {
+      // Tenant के चुने दर्शक (जगह + घेरा + उम्र)
+      const age = AGE_OPTIONS.find((a) => a.key === ageKey) || AGE_OPTIONS[0];
+      const targeting = {
+        geo_type: geoType,
+        place_name: geoType === "place" ? placeName.trim() : null,
+        radius_km: geoType === "place" ? radiusKm : null,
+        age_min: age.min,
+        age_max: age.max,
+      };
       // 1. Campaign बनाएँ (creative preview step में बन चुका है)
       setPhase(t("ads.launching"));
       const campaign = await api.campaigns.create({
@@ -90,6 +125,7 @@ export default function AdsPage() {
         ad_creative_id: creative.id,
         budget_total: budget * DAYS,
         budget_daily: budget,
+        targeting: JSON.stringify(targeting),
       });
 
       // 3. LAUNCH — Meta पर पूरी chain खड़ी होगी
@@ -125,8 +161,22 @@ export default function AdsPage() {
     setStep(1);
     setSelectedProduct(null);
     setBudget(null);
+    setGeoType("city");
+    setPlaceName("");
+    setRadiusKm(1);
+    setAgeKey("all");
     setCreative(null);
     setPreviewError(false);
+  }
+
+  /** Preview में दिखने वाला दर्शक-सारांश (जैसे: "आकाश इंस्टिट्यूट · 1 km · 👥 18-25") */
+  function targetingSummary() {
+    const age = AGE_OPTIONS.find((a) => a.key === ageKey) || AGE_OPTIONS[0];
+    const place =
+      geoType === "place"
+        ? `${placeName.trim()} · ${radiusKm} km`
+        : t("ads.yourCity");
+    return `📍 ${place} · 👥 ${t(age.labelKey)}`;
   }
 
   return (
@@ -157,11 +207,12 @@ export default function AdsPage() {
             </button>
           </div>
 
-          <StepDots step={step} total={3} />
+          <StepDots step={step} total={4} />
           <p className="text-center text-sm font-medium text-brand-600">
             {step === 1 && t("ads.step1")}
             {step === 2 && t("ads.step2")}
             {step === 3 && t("ads.step3")}
+            {step === 4 && t("ads.step4")}
           </p>
 
           {/* STEP 1: choose product */}
@@ -235,7 +286,7 @@ export default function AdsPage() {
                 </button>
                 <button
                   className="btn-primary flex-1"
-                  onClick={goToPreview}
+                  onClick={() => setStep(3)}
                   disabled={!budget}
                 >
                   {t("next")}
@@ -244,8 +295,101 @@ export default function AdsPage() {
             </div>
           )}
 
-          {/* STEP 3: PREVIEW — ad पहले देखो, फिर launch */}
+          {/* STEP 3: दर्शक चुनें — कहाँ + किस उम्र को (user की माँग) */}
           {step === 3 && (
+            <div className="space-y-4">
+              <p className="font-semibold text-gray-700">{t("ads.whereQ")}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setGeoType("city")}
+                  className={`card text-left transition-colors ${
+                    geoType === "city" ? "ring-2 ring-brand-500" : ""
+                  }`}
+                >
+                  <div className="text-2xl">🏙️</div>
+                  <p className="mt-1 font-semibold">{t("ads.locCity")}</p>
+                  <p className="text-xs text-gray-500">{t("ads.locCitySub")}</p>
+                </button>
+                <button
+                  onClick={() => setGeoType("place")}
+                  className={`card text-left transition-colors ${
+                    geoType === "place" ? "ring-2 ring-brand-500" : ""
+                  }`}
+                >
+                  <div className="text-2xl">📍</div>
+                  <p className="mt-1 font-semibold">{t("ads.locPlace")}</p>
+                  <p className="text-xs text-gray-500">
+                    {t("ads.locPlaceSub")}
+                  </p>
+                </button>
+              </div>
+
+              {/* खास जगह चुनी तो: नाम + घेरा */}
+              {geoType === "place" && (
+                <div className="space-y-3 rounded-xl bg-gray-50 p-3">
+                  <input
+                    value={placeName}
+                    onChange={(e) => setPlaceName(e.target.value)}
+                    placeholder={t("ads.placePlaceholder")}
+                    className="w-full rounded-xl border border-gray-300 p-3"
+                  />
+                  <p className="text-sm font-semibold text-gray-700">
+                    {t("ads.radiusQ")}
+                  </p>
+                  <div className="flex gap-2">
+                    {RADIUS_OPTIONS.map((km) => (
+                      <button
+                        key={km}
+                        onClick={() => setRadiusKm(km)}
+                        className={`flex-1 rounded-xl border py-2 font-semibold transition-colors ${
+                          radiusKm === km
+                            ? "border-brand-500 bg-brand-500 text-white"
+                            : "border-gray-300"
+                        }`}
+                      >
+                        {km} {t("ads.kmAway")}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <p className="font-semibold text-gray-700">{t("ads.ageQ")}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {AGE_OPTIONS.map((a) => (
+                  <button
+                    key={a.key}
+                    onClick={() => setAgeKey(a.key)}
+                    className={`rounded-xl border py-3 font-semibold transition-colors ${
+                      ageKey === a.key
+                        ? "border-brand-500 bg-brand-500 text-white"
+                        : "border-gray-300"
+                    }`}
+                  >
+                    {t(a.labelKey)}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  className="btn-secondary flex-1"
+                  onClick={() => setStep(2)}
+                >
+                  {t("back")}
+                </button>
+                <button
+                  className="btn-primary flex-1"
+                  onClick={handleTargetingNext}
+                >
+                  {t("next")}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: PREVIEW — ad पहले देखो, फिर launch */}
+          {step === 4 && (
             <div className="space-y-4">
               <p className="text-center font-semibold text-gray-700">
                 {t("ads.previewTitle")}
@@ -275,6 +419,10 @@ export default function AdsPage() {
                     product={selectedProduct}
                     creative={creative}
                   />
+                  {/* चुने हुए दर्शक — launch से पहले verify */}
+                  <p className="text-center text-sm font-medium text-gray-600">
+                    {t("ads.showsIn")}: {targetingSummary()}
+                  </p>
                   <div className="rounded-xl bg-brand-50 p-3 text-center">
                     <p className="font-bold text-brand-600">
                       {formatRupees(budget)} {t("ads.daily")} ·{" "}
@@ -290,7 +438,7 @@ export default function AdsPage() {
               <div className="flex gap-2">
                 <button
                   className="btn-secondary flex-1"
-                  onClick={() => setStep(2)}
+                  onClick={() => setStep(3)}
                   disabled={busy}
                 >
                   {t("back")}

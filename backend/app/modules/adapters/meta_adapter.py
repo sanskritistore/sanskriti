@@ -198,6 +198,7 @@ class MetaAdapter(BasePlatformAdapter):
         geo_city_keys: list[str],
         age_min: int = 18,
         age_max: int = 65,
+        custom_locations: list[dict] | None = None,
         optimization_goal: str = "REACH",
         billing_event: str = "IMPRESSIONS",
     ) -> str:
@@ -206,7 +207,28 @@ class MetaAdapter(BasePlatformAdapter):
 
         Meta बजट पैसे में माँगता है: ₹1 = 100 पैसे।
         सुरक्षा: हमेशा PAUSED बनता है।
+        custom_locations: [{"latitude","longitude","radius_km"}] — सुई+घेरा
+        targeting (जैसे किसी coaching institute के 1 km घेरे में)।
         """
+        if custom_locations:
+            geo = {
+                "custom_locations": [
+                    {
+                        "latitude": loc["latitude"],
+                        "longitude": loc["longitude"],
+                        "radius": loc.get("radius_km", 1),
+                        "distance_unit": "kilometer",
+                    }
+                    for loc in custom_locations
+                ],
+            }
+        else:
+            geo = {
+                "cities": [
+                    {"key": key, "radius": 25, "distance_unit": "mile"}
+                    for key in geo_city_keys
+                ],
+            }
         payload = {
             "name": name,
             "campaign_id": campaign_id,
@@ -215,12 +237,7 @@ class MetaAdapter(BasePlatformAdapter):
             "optimization_goal": optimization_goal,
             "bid_strategy": "LOWEST_COST_WITHOUT_CAP",  # बिना सीमा वाली सबसे-सस्ती बोली (v26 अनिवार्य)
             "targeting": {
-                "geo_locations": {
-                    "cities": [
-                        {"key": key, "radius": 25, "distance_unit": "mile"}
-                        for key in geo_city_keys
-                    ],
-                },
+                "geo_locations": geo,
                 "age_min": age_min,
                 "age_max": age_max,
             },
