@@ -92,9 +92,18 @@ export default function AdsPage() {
     setPlaces(places.filter((p) => p !== name));
   }
 
-  /** Step 3 → 4: कम से कम एक जगह ज़रूरी (खास जगह चुनी हो तो) */
+  /** Step 3 → 4: कम से कम एक जगह ज़रूरी (खास जगह चुनी हो तो)
+   *  लिखी हुई जगह "+ जोड़ें" दबाए बिना भी अपने आप जुड़ जाती है —
+   *  user ने लिखा पर add नहीं दबाया तो भी काम चले (07-10 UX सीख) */
   function handleTargetingNext() {
-    if (geoType === "place" && places.length === 0) {
+    let finalPlaces = places;
+    const typed = placeInput.trim();
+    if (geoType === "place" && typed && !places.includes(typed)) {
+      finalPlaces = [...places, typed];
+      setPlaces(finalPlaces);
+      setPlaceInput("");
+    }
+    if (geoType === "place" && finalPlaces.length === 0) {
       setToast(t("ads.placeNeeded"));
       setTimeout(() => setToast(""), 3000);
       return;
