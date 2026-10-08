@@ -7,6 +7,8 @@ import { formatRupees } from "@/lib/utils";
 import LanguageToggle from "@/components/ui/LanguageToggle";
 import StepDots from "@/components/ui/StepDots";
 import AdPreviewCard from "@/components/ads/AdPreviewCard";
+import MapPinPicker from "@/components/ads/MapPinPicker";
+import { STATES } from "@/lib/data/india-states";
 
 /** Preset daily budgets — simple choices, no free-form numbers */
 const BUDGET_OPTIONS = [100, 250, 500, 1000];
@@ -22,19 +24,6 @@ const AGE_OPTIONS = [
   { key: "senior", min: 41, max: 65, labelKey: "ads.ageSenior" },
 ];
 const RADIUS_OPTIONS = [1, 2, 5]; // km — Meta का न्यूनतम घेरा 1 km
-
-/** भारत के राज्य + केंद्र शासित प्रदेश — पहले राज्य चुनो, फिर जगह खोजो (user की माँग 08-10) */
-const STATES = [
-  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
-  "Delhi", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
-  "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
-  "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan",
-  "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
-  "Uttarakhand", "West Bengal",
-  "Jammu and Kashmir", "Ladakh", "Chandigarh", "Puducherry",
-  "Andaman and Nicobar Islands", "Dadra and Nagar Haveli and Daman and Diu",
-  "Lakshadweep",
-];
 
 /**
  * Ads — असली Meta campaign 4 steps में:
@@ -63,6 +52,7 @@ export default function AdsPage() {
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false); // कम से कम एक खोज पूरी हुई
   const searchTimer = useRef(null);
+  const [showMap, setShowMap] = useState(false); // "नक्शे से सुई" modal (08-10)
   const [radiusKm, setRadiusKm] = useState(1);
   const [ageKey, setAgeKey] = useState("all");
   const [creative, setCreative] = useState(null); // AI से बना ad text (preview में दिखता है)
@@ -488,6 +478,14 @@ export default function AdsPage() {
                         {t("ads.noResults")}
                       </p>
                     )}
+                  {/* नक्शे से सुई — मुफ़्त map में न मिले तो खुद टैप करो (08-10) */}
+                  <button
+                    type="button"
+                    onClick={() => setShowMap(true)}
+                    className="self-start text-left text-sm font-semibold text-brand-600 underline"
+                  >
+                    {t("ads.mapPick")}
+                  </button>
                   {/* जुड़ी हुई जगहें — 🟢 हरा = पक्का पता LOCK, नीला = नाम से */}
                   {places.length > 0 && (
                     <>
@@ -696,6 +694,26 @@ export default function AdsPage() {
             </div>
           )}
         </>
+      )}
+      {/* नक्शे से सुई modal — खोज में न मिली जगह खुद टैप करके LOCK (08-10) */}
+      {showMap && (
+        <MapPinPicker
+          stateName={state}
+          initialName={placeInput}
+          onClose={() => setShowMap(false)}
+          onPick={({ name, lat, lon }) => {
+            if (!places.some((p) => p.name === name) && places.length < 10) {
+              setPlaces([
+                ...places,
+                { name, area: t("ads.mapFromMap"), lat, lon },
+              ]);
+            }
+            setPlaceInput("");
+            setSuggestions([]);
+            setSearched(false);
+            setShowMap(false);
+          }}
+        />
       )}
     </div>
   );
