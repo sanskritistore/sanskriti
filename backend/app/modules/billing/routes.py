@@ -8,6 +8,8 @@ User की चिंता: "गलती से किसी और खात�
 सब कुछ settings (env) से — कोई account id code में गड़ी नहीं (बिंदु 18)।
 """
 
+import re
+
 import httpx
 from fastapi import APIRouter, Depends
 
@@ -50,7 +52,7 @@ async def billing_status(
             resp = await client.get(
                 f"{settings.META_GRAPH_URL}/{settings.META_API_VERSION}/act_{account_id}",
                 params={
-                    "fields": "name,currency,balance,amount_spent,spend_cap,account_status,business_name",
+                    "fields": "name,currency,balance,amount_spent,spend_cap,account_status,business_name,funding_source_details",
                     "access_token": settings.META_ACCESS_TOKEN,
                 },
             )
@@ -60,8 +62,22 @@ async def billing_status(
         raise AdapterError("meta", f"Graph API त्रुटि ({resp.status_code}): {resp.text}")
     data = resp.json()
 
-    # Meta राशि खाते की मुद्रा की छोटी इकाई में देता है (INR → पैसे)
-    balance = round(int(data.get("balance") or 0) / 100, 2)
+    # असली बचत: PREPAID खाते में "balance" field धोखा देता है (08-10 शाम:
+    # UI ने ₹14.48 दिखाया + "पैसा कम" डरावनी चेतावनी, जबकि असली prepaid
+    # बैलेंस ₹653.28 था!)। सच funding_source_details.display_string में होता
+    # है: "Available balance (₹653.28 INR)" — वहीं से ₹ राशि निकालें।
+    balance = None
+    fsd = data.get("funding_source_details") or {}
+    display = fsd.get("display_string") or ""
+    m = re.search(r"₹\s*([\d,]+(?:\.\d+)?)", display)
+    if m:
+        try:
+            balance = round(float(m.group(1).replace(",", "")), 2)
+        except ValueError:
+            balance = None
+    if balance is None:
+        # fallback: Meta राशि खाते की मुद्रा की छोटी इकाई में (INR → पैसे)
+        balance = round(int(data.get("balance") or 0) / 100, 2)
     spent = round(int(data.get("amount_spent") or 0) / 100, 2)
     # खर्च-रोक सीमा: spend_cap जन्म से खर्च (amount_spent) पर लगती है।
     # दुकानदार के लिए मायने = "अब से कितना और चल सकता है" (cap - spent)
