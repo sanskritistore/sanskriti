@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_tenant_id
 from app.core.database import get_db
 from app.core.exceptions import ProductNotFoundError
+from app.core.images import compress_data_uri
 from app.models.product import Product, ProductPhoto
 
 router = APIRouter()
@@ -110,6 +111,8 @@ async def create_product(
     """नया उत्पाद जोड़ें। tenant_id स्वतः सेट होता है।"""
     data = payload.model_dump()
     photo_url = data.pop("photo", None)
+    if photo_url:
+        photo_url = compress_data_uri(photo_url)
 
     product = Product(
         tenant_id=tenant_id,  # ARCHITECTURE RULE: हर row में tenant_id
@@ -156,6 +159,8 @@ async def update_product(
 
     data = payload.model_dump(exclude_unset=True)
     photo_url = data.pop("photo", None)
+    if photo_url is not None:
+        photo_url = compress_data_uri(photo_url)
     for field, value in data.items():
         setattr(product, field, value)
 

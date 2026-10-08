@@ -26,3 +26,6 @@ redis==5.0.8
 
 # सेटिंग्स प्रबंधन
 pydantic-settings==2.6.0
+
+# फ़ोटो auto-compress (server-side)
+pillow==10.4.0
