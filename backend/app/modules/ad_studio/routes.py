@@ -72,3 +72,30 @@ async def approve_ad(
     """विज्ञापन स्वीकार करें (कैंपेन लॉन्च से पहले अनिवार्य)।"""
     creative = await service.approve_creative(db, tenant_id, creative_id)
     return creative
+
+
+class AdCreativeUpdate(BaseModel):
+    """क्रिएटिव text सुधार — AI लिखे, दुकानदार अपनी भाषा में ठीक करे।"""
+
+    headline: str | None = None
+    primary_text: str | None = None
+    description: str | None = None
+
+
+@router.put("/{creative_id}", response_model=AdCreativeResponse)
+async def update_ad_creative(
+    creative_id: int,
+    payload: AdCreativeUpdate,
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """विज्ञापन का text बदलें (launch से पहले अपने शब्दों में सुधार)।"""
+    creative = await service.update_creative(
+        db=db,
+        tenant_id=tenant_id,
+        creative_id=creative_id,
+        headline=payload.headline,
+        primary_text=payload.primary_text,
+        description=payload.description,
+    )
+    return creative

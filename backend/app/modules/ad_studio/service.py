@@ -105,3 +105,26 @@ async def approve_creative(
     creative.is_approved = True
     await db.flush()
     return creative
+
+
+async def update_creative(
+    db: AsyncSession,
+    tenant_id: int,
+    creative_id: int,
+    headline: str | None,
+    primary_text: str | None,
+    description: str | None,
+) -> AdCreative:
+    """
+    क्रिएटिव का text बदलें — AI लिखे, दुकानदार सुधारे (08-10)।
+    जो field None है वह ज्यों का त्यों रहता है।
+    """
+    creative = await get_creative(db, tenant_id, creative_id)
+    if headline is not None:
+        creative.headline = headline
+    if primary_text is not None:
+        creative.primary_text = primary_text
+    if description is not None:
+        creative.description = description
+    await db.flush()
+    return creative
