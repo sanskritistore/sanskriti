@@ -62,9 +62,13 @@ async def list_ads(
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
-    """अपने सभी ads (कैंपेन) देखें - tenant_id से फ़िल्टर।"""
+    """अपने सभी ads (कैंपेन) देखें - tenant_id से फ़िल्टर।
+    हटाई गई (deleted) ads मुख्य list में नहीं दिखतीं - वे /records में रहती हैं।"""
     result = await db.execute(
-        select(Campaign).where(Campaign.tenant_id == tenant_id)
+        select(Campaign).where(
+            Campaign.tenant_id == tenant_id,
+            Campaign.status != "deleted",
+        )
     )
     campaigns = result.scalars().all()
 
@@ -94,6 +98,54 @@ async def list_ads(
         ad.product_id = product_id or 0
         ads.append(ad)
     return ads
+
+
+@router.get("/records")
+async def ad_records(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """हटाई गई ads का पूरा रिकॉर्ड — delete के बाद भी इतिहास सुरक्षित।
+
+    User demand (08-10): "hamne kitni ads chalai he, kis kis ki"
+    हमेशा दिखनी चाहिए, भले list से हटा दी जाएँ।
+    """
+    result = await db.execute(
+        select(Campaign).where(Campaign.tenant_id == tenant_id)  # ARCHITECTURE RULE
+    )
+    campaigns = result.scalars().all()
+
+    # उत्पाद नाम (N+1 से बचने के लिए एक क्वेरी)
+    result = await db.execute(
+        select(Product.id, Product.name).where(Product.tenant_id == tenant_id)
+    )
+    names = {pid: pname for pid, pname in result.all()}
+
+    records = []
+    for c in campaigns:
+        if c.status != "deleted":
+            continue
+        product_id = None
+        if c.name.startswith("ad:"):
+            try:
+                product_id = int(c.name.split(":")[1])
+            except (IndexError, ValueError):
+                product_id = None
+        records.append({
+            "id": c.id,
+            "name": c.name,
+            "product_name": names.get(product_id) if product_id else None,
+            "budget": c.budget_total,
+            "budget_daily": c.budget_daily,
+            "spent": c.budget_spent,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        })
+
+    return {
+        "total_ads": len(campaigns),  # अब तक कुल बनाई गई ads (सब स्थितियाँ)
+        "deleted_count": len(records),
+        "records": records,
+    }
 
 
 @router.post("", response_model=AdResponse)
@@ -189,7 +241,13 @@ async def delete_ad(
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
-    """ad हटाएँ - soft-delete (स्थिति "completed")।"""
+    """ad हटाएँ - soft-delete (स्थिति "deleted")।
+
+    - record DB में सुरक्षित रहता है (GET /ads/records में दिखता है)
+    - चालू (active) ad हटाई नहीं जा सकती — पहले रोकनी होगी
+    """
+    from fastapi import HTTPException
+
     result = await db.execute(
         select(Campaign).where(Campaign.id == ad_id, Campaign.tenant_id == tenant_id)
     )
@@ -197,5 +255,10 @@ async def delete_ad(
     if campaign is None:
         from app.core.exceptions import CampaignNotFoundError
         raise CampaignNotFoundError(ad_id)
-    campaign.status = "completed"
+    if campaign.status == "active":
+        raise HTTPException(
+            status_code=400,
+            detail="चालू ad नहीं हट सकती — पहले उसे रोकें (pause) करें।",
+        )
+    campaign.status = "deleted"
     await db.flush()

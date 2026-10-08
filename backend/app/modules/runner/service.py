@@ -226,15 +226,22 @@ async def pause_campaign(
 
 async def delete_campaign(db: AsyncSession, tenant_id: int, campaign_id: int) -> None:
     """
-    कैंपेन मिटाएँ — सिर्फ़ draft मिट सकती है (08-10 user माँग: कचरा drafts साफ़)।
+    कैंपेन हटाएँ — SOFT-DELETE (08-10 शाम user माँग):
+    "jo nahi chal rahi ads waha delete ka button ho, lekin record me honi chahiye"
 
-    Active/paused कैंपेन प्लेटफ़ॉर्म से जुड़ी होती हैं — उन्हें मिटाने से
-    रिपोर्ट/खर्च का इतिहास खोएगा, इसलिए इनकार। पहले ⏸ रोकना ही रास्ता है।
+    - draft/paused दोनों हट सकती हैं → status = "deleted"
+    - record DB में सुरक्षित रहता है (GET /campaigns/records में दिखता है)
+    - active कैंपेन नहीं हट सकती — पहले ⏸ रोकनी होगी
     """
+    from fastapi import HTTPException
+
     campaign = await get_campaign(db, tenant_id, campaign_id)
-    if campaign.status != "draft":
-        raise CampaignNotDraftError(campaign_id)
-    await db.delete(campaign)
+    if campaign.status == "active":
+        raise HTTPException(
+            status_code=400,
+            detail="चालू ad नहीं हट सकती — पहले उसे रोकें (pause) करें।",
+        )
+    campaign.status = "deleted"
     await db.flush()
 
 

@@ -60,11 +60,45 @@ async def list_campaigns(
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
-    """अपनी सभी कैंपेन देखें।"""
+    """अपनी सभी कैंपेन देखें — हटाई गई (deleted) छिपी रहती हैं, /records में मिलती हैं।"""
     result = await db.execute(
-        select(Campaign).where(Campaign.tenant_id == tenant_id)
+        select(Campaign).where(
+            Campaign.tenant_id == tenant_id,
+            Campaign.status != "deleted",
+        )
     )
     return result.scalars().all()
+
+
+@router.get("/records")
+async def campaign_records(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """हटाई गई ads का पूरा रिकॉर्ड — "kitni ads chalai, kis kis ki" हमेशा सुरक्षित।"""
+    result = await db.execute(
+        select(Campaign).where(Campaign.tenant_id == tenant_id)  # ARCHITECTURE RULE
+    )
+    campaigns = result.scalars().all()
+
+    records = [
+        {
+            "id": c.id,
+            "name": c.name,
+            "objective": c.objective,
+            "budget": c.budget_total,
+            "budget_daily": c.budget_daily,
+            "spent": c.budget_spent,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in campaigns
+        if c.status == "deleted"
+    ]
+    return {
+        "total_ads": len(campaigns),  # अब तक कुल बनाई गई ads (सब स्थितियाँ)
+        "deleted_count": len(records),
+        "records": records,
+    }
 
 
 @router.post("", response_model=CampaignResponse)

@@ -60,6 +60,37 @@ export default function AdsPage() {
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState(""); // कौन सा काम चल रहा है
   const [toast, setToast] = useState("");
+  const [records, setRecords] = useState(null); // हटाई गई ads का रिकॉर्ड
+  const [showRecords, setShowRecords] = useState(false);
+
+  /** हटाई गई ads का रिकॉर्ड खोलें/लाएँ */
+  async function toggleRecords() {
+    const next = !showRecords;
+    setShowRecords(next);
+    if (next) {
+      try {
+        setRecords(await api.campaigns.records());
+      } catch {
+        setRecords(null);
+      }
+    }
+  }
+
+  /** रुकी/draft ad हटाएँ — record सुरक्षित रहता है (08-10 user माँग) */
+  async function handleDelete(c) {
+    if (!window.confirm(t("ads.deleteConfirm"))) return;
+    setBusy(true);
+    try {
+      await api.campaigns.delete(c.id);
+      setCampaigns(campaigns.filter((x) => x.id !== c.id));
+      setRecords(null); // अगली बार खोलने पर ताज़ा रिकॉर्ड आए
+    } catch (err) {
+      setToast(err?.message || t("login.error.generic"));
+      setTimeout(() => setToast(""), 3000);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function loadAll() {
     try {
@@ -684,12 +715,66 @@ export default function AdsPage() {
                         ⏸ {t("ads.pause")}
                       </button>
                     ) : (
-                      <span className="rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-500">
-                        ⏸
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-500">
+                          ⏸
+                        </span>
+                        {/* रुकी/draft ad हटाएँ — record सुरक्षित रहता है */}
+                        <button
+                          className="rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-600"
+                          onClick={() => handleDelete(c)}
+                          disabled={busy}
+                          title={t("ads.delete")}
+                        >
+                          🗑 {t("ads.delete")}
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))
+              )}
+
+              {/* 📜 रिकॉर्ड — हटाई गई ads का इतिहास (08-10 user माँग:
+                  "kitni ads chalai he, kis kis ki" हमेशा दिखे) */}
+              <button
+                className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-600"
+                onClick={toggleRecords}
+              >
+                📜 {t("ads.records")} {showRecords ? "▲" : "▼"}
+              </button>
+              {showRecords && (
+                <div className="card space-y-3">
+                  {!records ? (
+                    <p className="py-4 text-center text-gray-400">{t("loading")}</p>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-gray-600">
+                        {t("ads.totalAds")}: {records.total_ads} · 🗑{" "}
+                        {records.deleted_count}
+                      </p>
+                      {records.records.length === 0 ? (
+                        <p className="py-3 text-center text-sm text-gray-400">
+                          {t("ads.noRecords")}
+                        </p>
+                      ) : (
+                        records.records.map((r) => (
+                          <div
+                            key={r.id}
+                            className="rounded-xl bg-gray-50 p-3 text-sm"
+                          >
+                            <p className="font-semibold text-gray-700">
+                              🗑 {r.name}
+                            </p>
+                            <p className="text-gray-500">
+                              {formatRupees(r.budget_daily)} {t("ads.daily")} ·{" "}
+                              {t("ads.deletedBadge")}
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </>
+                  )}
+                </div>
               )}
             </div>
           )}

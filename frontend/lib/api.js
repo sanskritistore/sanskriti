@@ -187,6 +187,7 @@ export function APIProvider({ children }) {
         create: (data) => call("/ads", { method: "POST", body: data }),
         update: (id, data) => call(`/ads/${id}`, { method: "PUT", body: data }),
         delete: (id) => call(`/ads/${id}`, { method: "DELETE" }),
+        records: () => call("/ads/records"),
       },
 
       // Ad Studio — AI द्वारा विज्ञापन text बनाना
@@ -214,6 +215,8 @@ export function APIProvider({ children }) {
         create: (data) => call("/campaigns", { method: "POST", body: data }),
         launch: (id) => call(`/campaigns/${id}/launch`, { method: "POST" }),
         pause: (id) => call(`/campaigns/${id}/pause`, { method: "POST" }),
+        delete: (id) => call(`/campaigns/${id}`, { method: "DELETE" }),
+        records: () => call("/campaigns/records"),
       },
 
       // Reports — simple "₹X spent → Y customers"
