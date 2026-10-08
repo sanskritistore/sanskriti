@@ -18,6 +18,21 @@ export default function BillingCard() {
   const api = useAPI();
   const [info, setInfo] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [capBusy, setCapBusy] = useState(false);
+
+  // खर्च-रोक सीमा — सिर्फ़ तय chip (अपना नंबर लिखने की गलती का दरवाज़ा बंद)
+  const CAP_CHOICES = [1000, 3000, 5000];
+
+  async function setCap(amount) {
+    setCapBusy(true);
+    try {
+      const fresh = await api.billing.setSpendCap(amount);
+      setInfo(fresh);
+    } catch {
+      /* Meta बंद हो तो पुरानी स्थिति ही रहे */
+    }
+    setCapBusy(false);
+  }
 
   useEffect(() => {
     api.billing
@@ -61,12 +76,45 @@ export default function BillingCard() {
             {info.spent_rupees.toLocaleString("en-IN")}
           </p>
         )}
+        {info.today_spend_rupees !== null && (
+          <p className="text-xs text-gray-500">
+            {t("billing.todaySpend")}: ₹
+            {info.today_spend_rupees.toLocaleString("en-IN")}
+          </p>
+        )}
         <button
           className="btn-primary w-full"
           onClick={() => setConfirmOpen(true)}
         >
           {t("billing.addMoney")}
         </button>
+
+        {/* 🛡️ खर्च-रोक सीमा — "limit apne hisab se" (08-10 user माँग) */}
+        <div className="border-t border-gray-200 pt-2">
+          <p className="text-xs font-bold text-gray-600">
+            {t("billing.capTitle")}
+          </p>
+          <p className="text-xs text-gray-500">
+            {info.cap_remaining_rupees !== null
+              ? t("billing.capSet").replace(
+                  "{x}",
+                  info.cap_remaining_rupees.toLocaleString("en-IN")
+                )
+              : t("billing.capNone")}
+          </p>
+          <div className="mt-1 flex gap-2">
+            {CAP_CHOICES.map((amt) => (
+              <button
+                key={amt}
+                disabled={capBusy}
+                onClick={() => setCap(amt)}
+                className="flex-1 rounded-lg border border-green-600 py-1.5 text-xs font-bold text-green-700 disabled:opacity-40"
+              >
+                ₹{amt.toLocaleString("en-IN")}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* पुष्टि डिब्बा — नाम दिखाए बिना आगे नहीं (गलत खाता असंभव) */}

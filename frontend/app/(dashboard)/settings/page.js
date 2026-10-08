@@ -88,7 +88,7 @@ export default function SettingsPage() {
       )}
 
       {/* 💰 Wallet — दुकानदार का पैसा सबसे ऊपर */}
-      {wallet !== null && (
+      {wallet !== null && Number(wallet) > 0 && (
         <div className="card bg-gradient-to-r from-brand-50 to-white text-center">
           <p className="text-sm font-semibold text-gray-500">
             {t("settings.wallet")}
