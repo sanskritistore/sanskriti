@@ -39,6 +39,16 @@ class CampaignNotFoundError(SanskritiException):
         super().__init__(status.HTTP_404_NOT_FOUND, detail)
 
 
+class CampaignNotDraftError(SanskritiException):
+    """सिर्फ़ draft कैंपेन मिट सकती है — active/paused पर इनकार।"""
+
+    def __init__(self, campaign_id=None):
+        super().__init__(
+            status.HTTP_400_BAD_REQUEST,
+            f"सिर्फ़ रुकी हुई (draft) कैंपेन मिट सकती है (id: {campaign_id}) — पहले ⏸ रोकें",
+        )
+
+
 class InsufficientBudgetError(SanskritiException):
     """वॉलेट में पर्याप्त बजट नहीं है।"""
 

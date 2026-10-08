@@ -104,3 +104,14 @@ async def pause_campaign(
     """कैंपेन रोकें (प्लेटफॉर्म पर भी PAUSE)।"""
     campaign = await service.pause_campaign(db, tenant_id, campaign_id)
     return campaign
+
+
+@router.delete("/{campaign_id}")
+async def delete_campaign(
+    campaign_id: int,
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """कचरा draft कैंपेन मिटाएँ — सिर्फ़ draft मिटेगी (08-10 user माँग)।"""
+    await service.delete_campaign(db, tenant_id, campaign_id)
+    return {"ok": True, "deleted": campaign_id}

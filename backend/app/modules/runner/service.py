@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     CampaignNotFoundError,
+    CampaignNotDraftError,
     InsufficientBudgetError,
 )
 from app.models.campaign import Campaign, PlatformCampaign
@@ -221,6 +222,20 @@ async def pause_campaign(
     campaign.status = "paused"
     await db.flush()
     return campaign
+
+
+async def delete_campaign(db: AsyncSession, tenant_id: int, campaign_id: int) -> None:
+    """
+    कैंपेन मिटाएँ — सिर्फ़ draft मिट सकती है (08-10 user माँग: कचरा drafts साफ़)।
+
+    Active/paused कैंपेन प्लेटफ़ॉर्म से जुड़ी होती हैं — उन्हें मिटाने से
+    रिपोर्ट/खर्च का इतिहास खोएगा, इसलिए इनकार। पहले ⏸ रोकना ही रास्ता है।
+    """
+    campaign = await get_campaign(db, tenant_id, campaign_id)
+    if campaign.status != "draft":
+        raise CampaignNotDraftError(campaign_id)
+    await db.delete(campaign)
+    await db.flush()
 
 
 # ─── Launch helpers ───────────────────────────────────────────
