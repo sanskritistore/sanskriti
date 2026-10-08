@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 _SKIP_BYTES = 300 * 1024
 # अधिकतम आयाम (चौड़ाई/ऊँचाई) — ad/poster के लिए 900px काफ़ी है
 _MAX_DIM = 900
-# JPEG गुणवत्ता — दिखने में वैसी, size में बहुत छोटी
-_JPEG_QUALITY = 55
+# WebP गुणवत्ता — JPEG से ~30% छोटा, दिखने में बराबर
+_WEBP_QUALITY = 70
 
 
 def compress_data_uri(uri: str) -> str:
@@ -38,14 +38,33 @@ def compress_data_uri(uri: str) -> str:
         img = Image.open(io.BytesIO(raw)).convert("RGB")
         img.thumbnail((_MAX_DIM, _MAX_DIM), Image.LANCZOS)
         buf = io.BytesIO()
-        img.save(buf, "JPEG", quality=_JPEG_QUALITY, optimize=True)
+        img.save(buf, "WEBP", quality=_WEBP_QUALITY, method=6)
         new = buf.getvalue()
         if len(new) >= len(raw):
             return uri  # compress करके कोई फ़ायदा नहीं हुआ
         logger.info(
             "photo compress: %dKB -> %dKB", len(raw) // 1024, len(new) // 1024
         )
-        return "data:image/jpeg;base64," + base64.b64encode(new).decode()
+        return "data:image/webp;base64," + base64.b64encode(new).decode()
     except Exception:
         logger.warning("photo compress नहीं हो पाई — original रखी", exc_info=True)
         return uri
+
+
+def data_uri_to_jpeg_bytes(uri: str) -> bytes:
+    """data URI (WebP/JPEG/PNG) → JPEG bytes।
+
+    Meta ads सिर्फ़ JPEG/PNG समझती है — WebP नहीं। इसलिए ad में
+    photo भेजने से पहले यहाँ से JPEG बनाकर भेजें।
+    कोई error हो तो original bytes लौटाएँ।
+    """
+    try:
+        _header, b64 = uri.split(",", 1)
+        raw = base64.b64decode(b64)
+        img = Image.open(io.BytesIO(raw)).convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, "JPEG", quality=90)
+        return buf.getvalue()
+    except Exception:
+        logger.warning("JPEG conversion fail — original bytes भेजे", exc_info=True)
+        return base64.b64decode(uri.split(",", 1)[1])

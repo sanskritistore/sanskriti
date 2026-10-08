@@ -340,13 +340,12 @@ async def _resolve_image_path(product, creative) -> str:
 
     if candidate:
         if candidate.startswith("data:image"):
-            # data-URL → अस्थायी फ़ाइल
-            header, b64 = candidate.split(",", 1)
-            ext = "png" if "png" in header else "jpg"
+            # data-URL → JPEG अस्थायी फ़ाइल (Meta WebP accept नहीं करती)
+            from app.core.images import data_uri_to_jpeg_bytes
             tmp = tempfile.NamedTemporaryFile(
-                delete=False, suffix=f".{ext}", prefix="sanskriti-ad-"
+                delete=False, suffix=".jpg", prefix="sanskriti-ad-"
             )
-            tmp.write(base64.b64decode(b64))
+            tmp.write(data_uri_to_jpeg_bytes(candidate))
             tmp.close()
             return tmp.name
         if candidate.startswith(("http://", "https://")):
