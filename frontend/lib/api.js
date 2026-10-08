@@ -66,6 +66,21 @@ async function request(path, { method = "GET", body, token, ...rest } = {}) {
         });
 
         if (!res.ok) {
+          // 401 = login session खत्म — साफ़ करके login page भेजें,
+          // वरना user को खाली list + "गड़बड़" समझ नहीं आती (08-10 शाम user फँसा था)
+          if (res.status === 401) {
+            try {
+              localStorage.removeItem(TOKEN_KEY);
+            } catch {
+              /* storage बंद हो तो भी आगे बढ़ें */
+            }
+            if (
+              typeof window !== "undefined" &&
+              !window.location.pathname.startsWith("/login")
+            ) {
+              window.location.href = "/login";
+            }
+          }
           // 5xx = server की तबीयत खराब — दोबारा कोशिश
           // 4xx = असली जवाब (जैसे गलत OTP) — वैसे ही आगे बढ़ाओ
           if (res.status >= 500 && attempt < MAX_ATTEMPTS) {
