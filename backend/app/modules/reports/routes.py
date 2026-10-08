@@ -37,3 +37,16 @@ async def campaign_report(
 ):
     """एक कैंपेन की विस्तृत रिपोर्ट (प्लेटफॉर्म से ताज़ा मेट्रिक्स)।"""
     return await service.build_campaign_report(db, tenant_id, campaign_id)
+
+
+@router.get("/who-saw")
+async def who_saw(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    किसने ad देखी — user की माँग (08-10): "सटीक information कि कौन ad देख रहा है"।
+    ईमानदार सच: Meta नाम/नंबर किसी को नहीं देता (privacy क़ानून) — पर उम्र,
+    लड़का/लड़की, इलाका (region) और FB/Instagram बंटवारा ज़रूर देता है।
+    """
+    return await service.build_who_saw(db, tenant_id)

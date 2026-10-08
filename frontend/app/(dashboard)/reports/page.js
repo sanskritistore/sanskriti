@@ -5,6 +5,7 @@ import { useLanguage } from "@/lib/LanguageContext";
 import { useAPI } from "@/lib/api";
 import { formatRupees } from "@/lib/utils";
 import LanguageToggle from "@/components/ui/LanguageToggle";
+import WhoSawCard from "@/components/reports/WhoSawCard";
 
 /**
  * Reports — the whole page answers ONE question in money language:
@@ -57,6 +58,9 @@ export default function ReportsPage() {
             </p>
             <p className="mt-2 text-gray-500">{t("reports.headlineHint")}</p>
           </div>
+
+          {/* 👀 किसने ad देखी — उम्र/इलाका/FB-Instagram बंटवारा (08-10) */}
+          <WhoSawCard />
 
           {/* Two simple numbers side by side */}
           <div className="grid grid-cols-2 gap-3">

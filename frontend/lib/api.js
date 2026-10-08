@@ -204,6 +204,7 @@ export function APIProvider({ children }) {
       // Reports — simple "₹X spent → Y customers"
       reports: {
         summary: () => call("/reports/summary"),
+        whoSaw: () => call("/reports/who-saw"),
       },
 
       // Token management

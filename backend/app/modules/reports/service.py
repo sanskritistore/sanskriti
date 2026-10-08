@@ -85,3 +85,78 @@ async def build_campaign_report(
         })
 
     return report
+
+
+async def build_who_saw(db: AsyncSession, tenant_id: int) -> dict:
+    """
+    किसने ad देखी — पिछले 7 दिन का बंटवारा (08-10 user माँग)।
+
+    तीन नज़रिए: उम्र×लड़का/लड़की, इलाका (region), FB/Instagram।
+    नाम/नंबर Meta किसी को नहीं देता — यही क़ानूनन सबसे सटीक जानकारी है।
+    """
+    import httpx
+    from sqlalchemy import select
+    from app.core.config import settings
+
+    result = await db.execute(
+        select(Campaign).where(Campaign.tenant_id == tenant_id)
+    )
+    campaigns = result.scalars().all()
+    meta_ids = [
+        pc.platform_campaign_id
+        for c in campaigns
+        for pc in c.platform_campaigns
+        if pc.platform == "meta"
+    ]
+    if not meta_ids or not settings.META_ACCESS_TOKEN:
+        return {"age_gender": [], "regions": [], "platforms": [], "days": 7}
+
+    base = f"{settings.META_GRAPH_URL}/{settings.META_API_VERSION}"
+
+    async def fetch(campaign_id: str, breakdown: str) -> list:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.get(
+                f"{base}/{campaign_id}/insights",
+                params={
+                    "fields": "impressions,clicks,spend",
+                    "breakdowns": breakdown,
+                    "date_preset": "last_7d",
+                    "access_token": settings.META_ACCESS_TOKEN,
+                },
+            )
+            if resp.status_code >= 400:
+                return []
+            return resp.json().get("data", [])
+
+    def merge(acc: dict, key: tuple, row: dict) -> None:
+        cur = acc.setdefault(key, {"impressions": 0, "clicks": 0, "spend": 0.0})
+        cur["impressions"] += int(row.get("impressions", 0))
+        cur["clicks"] += int(row.get("clicks", 0))
+        cur["spend"] += float(row.get("spend", 0))
+
+    age_gender: dict = {}
+    regions: dict = {}
+    platforms: dict = {}
+    for cid in meta_ids:
+        for row in await fetch(cid, "age,gender"):
+            merge(age_gender, (row.get("age"), row.get("gender")), row)
+        for row in await fetch(cid, "region"):
+            merge(regions, (row.get("region"), row.get("country")), row)
+        for row in await fetch(cid, "publisher_platform"):
+            merge(platforms, (row.get("publisher_platform"),), row)
+
+    def ranked(items, keys):
+        out = [dict(zip(keys, k), **v) for k, v in items.items()]
+        total = sum(x["impressions"] for x in out) or 1
+        out.sort(key=lambda x: -x["impressions"])
+        for x in out:
+            x["pct"] = round(x["impressions"] * 100 / total)
+            x["spend"] = round(x["spend"], 2)
+        return out
+
+    return {
+        "age_gender": ranked(age_gender, ("age", "gender")),
+        "regions": ranked(regions, ("region", "country")),
+        "platforms": ranked(platforms, ("platform",)),
+        "days": 7,
+    }
