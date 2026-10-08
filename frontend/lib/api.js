@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -20,33 +21,93 @@ const TOKEN_KEY = "sanskriti_token";
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "/api/v1";
 
+/**
+ * "सर्वर जाग रहा है" signal — Render का free plan 15 मिनट बाद सो जाता है
+ * और जागने में 30-60 सेकंड लगता है। कोई request 4 सेकंड से ज़्यादा लटके
+ * तो banner दिखाने के लिए listeners को खबर जाती है।
+ */
+const wakingListeners = new Set();
+let slowRequests = 0;
+
+export function onServerWaking(fn) {
+  wakingListeners.add(fn);
+  return () => wakingListeners.delete(fn);
+}
+
+function bumpSlow(delta) {
+  slowRequests = Math.max(0, slowRequests + delta);
+  wakingListeners.forEach((fn) => fn(slowRequests > 0));
+}
+
 async function request(path, { method = "GET", body, token, ...rest } = {}) {
   const headers = { "Content-Type": "application/json", ...rest.headers };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  // Cold-start दोस्त: लंबा timeout + 3 कोशिशें (Render जागने में ~30-60s)
+  const MAX_ATTEMPTS = 3;
+  const TIMEOUT_MS = 75000;
+  let lastError;
+  let markedSlow = false;
+  const slowTimer = setTimeout(() => {
+    markedSlow = true;
+    bumpSlow(1);
+  }, 4000);
 
-  if (!res.ok) {
-    let message = `API error ${res.status}`;
-    try {
-      const data = await res.json();
-      message = data?.detail || data?.message || message;
-    } catch {
-      /* non-JSON error body */
+  try {
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      try {
+        const res = await fetch(`${API_BASE}${path}`, {
+          method,
+          headers,
+          body: body !== undefined ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          // 5xx = server की तबीयत खराब — दोबारा कोशिश
+          // 4xx = असली जवाब (जैसे गलत OTP) — वैसे ही आगे बढ़ाओ
+          if (res.status >= 500 && attempt < MAX_ATTEMPTS) {
+            await new Promise((r) => setTimeout(r, 2000));
+            continue;
+          }
+          let message = `API error ${res.status}`;
+          try {
+            const data = await res.json();
+            message = data?.detail || data?.message || message;
+          } catch {
+            /* non-JSON error body */
+          }
+          const error = new Error(message);
+          error.status = res.status;
+          throw error;
+        }
+
+        // 204 / empty body
+        if (res.status === 204) return null;
+        const text = await res.text();
+        return text ? JSON.parse(text) : null;
+      } catch (err) {
+        lastError = err;
+        const retriable =
+          err.name === "AbortError" || // हमारा अपना timeout
+          err instanceof TypeError || // network टूटा / proxy ने काटा
+          (typeof err.status === "number" && err.status >= 500);
+        if (attempt < MAX_ATTEMPTS && retriable) {
+          await new Promise((r) => setTimeout(r, 2000));
+          continue;
+        }
+        throw err;
+      } finally {
+        clearTimeout(timeout);
+      }
     }
-    const error = new Error(message);
-    error.status = res.status;
-    throw error;
+    throw lastError;
+  } finally {
+    clearTimeout(slowTimer);
+    if (markedSlow) bumpSlow(-1);
   }
-
-  // 204 / empty body
-  if (res.status === 204) return null;
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
 }
 
 /**
@@ -55,6 +116,10 @@ async function request(path, { method = "GET", body, token, ...rest } = {}) {
  */
 export function APIProvider({ children }) {
   const [token, setToken] = useState(null);
+  const [waking, setWaking] = useState(false);
+
+  // "सर्वर जाग रहा है" सूचना सुनो
+  useEffect(() => onServerWaking(setWaking), []);
 
   // Hydrate token on first client render
   useState(() => {
@@ -135,7 +200,9 @@ export function APIProvider({ children }) {
     };
   }, [token, setAuthToken]);
 
-  return <APIContext.Provider value={api}>{children}</APIContext.Provider>;
+  const value = useMemo(() => ({ ...api, waking }), [api, waking]);
+
+  return <APIContext.Provider value={value}>{children}</APIContext.Provider>;
 }
 
 export function useAPI() {

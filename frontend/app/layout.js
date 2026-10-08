@@ -2,6 +2,7 @@ import "./globals.css";
 import { LanguageProvider } from "@/lib/LanguageContext";
 import { APIProvider } from "@/lib/api";
 import AppShell from "@/components/layout/AppShell";
+import WakingBanner from "@/components/WakingBanner";
 
 export const metadata = {
   title: "Sanskriti | संस्कृति",
@@ -35,6 +36,7 @@ export default function RootLayout({ children }) {
       <body className="min-h-dvh bg-gray-50 text-gray-900 antialiased">
         <LanguageProvider defaultLanguage="hi">
           <APIProvider>
+            <WakingBanner />
             <AppShell>{children}</AppShell>
           </APIProvider>
         </LanguageProvider>
