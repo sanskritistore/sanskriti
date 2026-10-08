@@ -6,6 +6,7 @@ import { useLanguage } from "@/lib/LanguageContext";
 import { useAPI } from "@/lib/api";
 import LanguageToggle from "@/components/ui/LanguageToggle";
 import StepDots from "@/components/ui/StepDots";
+import BillingCard from "@/components/settings/BillingCard";
 
 /** Shop categories — plain Hindi words, no jargon */
 const CATEGORIES = [
@@ -100,6 +101,9 @@ export default function SettingsPage() {
           </p>
         </div>
       )}
+
+      {/* 💳 Meta ad खाता — बैलेंस + सुरक्षित पैसा-डालो (08-10) */}
+      <BillingCard />
 
       <div className="card space-y-4">
         <StepDots step={step} total={3} />

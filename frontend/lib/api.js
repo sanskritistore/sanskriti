@@ -188,6 +188,11 @@ export function APIProvider({ children }) {
           ),
       },
 
+      // Billing — Meta ad खाते की पैसा-स्थिति + सुरक्षित पैसा-डालो link (08-10)
+      billing: {
+        status: () => call("/billing/status"),
+      },
+
       // Campaigns — असली Meta पर launch होने वाली campaigns (runner)
       campaigns: {
         list: () => call("/campaigns"),
