@@ -10,7 +10,6 @@ User की चिंता: "गलती से किसी और खात�
 
 import httpx
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_tenant_id
 from app.core.config import settings
@@ -106,54 +105,3 @@ async def billing_status(
             f"?asset_id=act_{account_id}"
         ),
     }
-
-
-class SpendCapSet(BaseModel):
-    """अब से आगे कुल कितने ₹ और खर्च की इजाज़त (जन्म से खर्च में जुड़ जाता है)।"""
-
-    extra_rupees: float = Field(gt=0, le=10_000_000)
-
-
-@router.post("/spend-cap")
-async def set_spend_cap(
-    payload: SpendCapSet,
-    tenant_id: int = Depends(get_current_tenant_id),  # noqa: ARG001
-) -> dict:
-    """
-    खाता खर्च-रोक सीमा लगाओ/बदलो — user की माँग (08-10):
-    "limit ham apne hisab se set kar sake"।
-
-    Meta की spend_cap जन्म से कुल खर्च (amount_spent) पर चढ़ती है,
-    इसलिए नई सीमा = अब तक खर्च + user की गुंजाइश। सीमा छूते ही
-    Meta सारी ads अपने आप रोक देता है — पैसे की पूरी सुरक्षा।
-    """
-    account_id = settings.META_AD_ACCOUNT_ID.replace("act_", "")
-    if not account_id or not settings.META_ACCESS_TOKEN:
-        raise AdapterError("meta", "Meta खाता जुड़ा नहीं है")
-
-    # पहले अब तक का खर्च पढ़ो — सीमा उसके ऊपर चढ़ेगी
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        read = await client.get(
-            f"{settings.META_GRAPH_URL}/{settings.META_API_VERSION}/act_{account_id}",
-            params={
-                "fields": "amount_spent",
-                "access_token": settings.META_ACCESS_TOKEN,
-            },
-        )
-        if read.status_code >= 400:
-            raise AdapterError("meta", f"Graph API त्रुटि ({read.status_code})")
-        spent_paise = int(read.json().get("amount_spent") or 0)
-
-        new_cap_paise = spent_paise + round(payload.extra_rupees * 100)
-        write = await client.post(
-            f"{settings.META_GRAPH_URL}/{settings.META_API_VERSION}/act_{account_id}",
-            params={"access_token": settings.META_ACCESS_TOKEN},
-            data={"spend_cap": str(new_cap_paise)},
-        )
-        if write.status_code >= 400 or not write.json().get("success", False):
-            raise AdapterError(
-                "meta", f"सीमा नहीं लगी ({write.status_code}): {write.text}"
-            )
-
-    # नई स्थिति लौटाओ — UI तुरंत सच दिखाए
-    return await billing_status(tenant_id)

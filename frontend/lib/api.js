@@ -191,11 +191,6 @@ export function APIProvider({ children }) {
       // Billing — Meta ad खाते की पैसा-स्थिति + सुरक्षित पैसा-डालो link (08-10)
       billing: {
         status: () => call("/billing/status"),
-        setSpendCap: (extra_rupees) =>
-          call("/billing/spend-cap", {
-            method: "POST",
-            body: { extra_rupees },
-          }),
       },
 
       // Campaigns — असली Meta पर launch होने वाली campaigns (runner)

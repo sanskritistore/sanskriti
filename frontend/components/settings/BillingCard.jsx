@@ -18,21 +18,6 @@ export default function BillingCard() {
   const api = useAPI();
   const [info, setInfo] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [capBusy, setCapBusy] = useState(false);
-
-  // खर्च-रोक सीमा — सिर्फ़ तय chip (अपना नंबर लिखने की गलती का दरवाज़ा बंद)
-  const CAP_CHOICES = [1000, 3000, 5000];
-
-  async function setCap(amount) {
-    setCapBusy(true);
-    try {
-      const fresh = await api.billing.setSpendCap(amount);
-      setInfo(fresh);
-    } catch {
-      /* Meta बंद हो तो पुरानी स्थिति ही रहे */
-    }
-    setCapBusy(false);
-  }
 
   useEffect(() => {
     api.billing
@@ -89,31 +74,16 @@ export default function BillingCard() {
           {t("billing.addMoney")}
         </button>
 
-        {/* 🛡️ खर्च-रोक सीमा — "limit apne hisab se" (08-10 user माँग) */}
-        <div className="border-t border-gray-200 pt-2">
-          <p className="text-xs font-bold text-gray-600">
-            {t("billing.capTitle")}
+        {/* 🔒 Prepaid सच्चाई — Meta खुद की सीमा prepaid खातों पर नहीं लगने
+            देता (08-10 test: error 1487840), और ज़रूरत भी नहीं: घड़े में जितना
+            पानी, उतना ही निकलेगा। यही user की माँगी हुई सुरक्षा पहले से है। */}
+        <div className="rounded-xl bg-green-50 p-3">
+          <p className="text-xs font-bold text-green-800">
+            {t("billing.prepaidTitle")}
           </p>
-          <p className="text-xs text-gray-500">
-            {info.cap_remaining_rupees !== null
-              ? t("billing.capSet").replace(
-                  "{x}",
-                  info.cap_remaining_rupees.toLocaleString("en-IN")
-                )
-              : t("billing.capNone")}
+          <p className="mt-0.5 text-xs text-green-700">
+            {t("billing.prepaidHint")}
           </p>
-          <div className="mt-1 flex gap-2">
-            {CAP_CHOICES.map((amt) => (
-              <button
-                key={amt}
-                disabled={capBusy}
-                onClick={() => setCap(amt)}
-                className="flex-1 rounded-lg border border-green-600 py-1.5 text-xs font-bold text-green-700 disabled:opacity-40"
-              >
-                ₹{amt.toLocaleString("en-IN")}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
