@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { useAPI } from "@/lib/api";
 import { formatRupees } from "@/lib/utils";
@@ -23,6 +23,19 @@ const AGE_OPTIONS = [
 ];
 const RADIUS_OPTIONS = [1, 2, 5]; // km — Meta का न्यूनतम घेरा 1 km
 
+/** भारत के राज्य + केंद्र शासित प्रदेश — पहले राज्य चुनो, फिर जगह खोजो (user की माँग 08-10) */
+const STATES = [
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+  "Delhi", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
+  "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
+  "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan",
+  "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
+  "Uttarakhand", "West Bengal",
+  "Jammu and Kashmir", "Ladakh", "Chandigarh", "Puducherry",
+  "Andaman and Nicobar Islands", "Dadra and Nagar Haveli and Daman and Diu",
+  "Lakshadweep",
+];
+
 /**
  * Ads — असली Meta campaign 4 steps में:
  *   Step 1: प्रोडक्ट चुनें
@@ -43,8 +56,13 @@ export default function AdsPage() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [budget, setBudget] = useState(null);
   const [geoType, setGeoType] = useState("city"); // city | place
-  const [places, setPlaces] = useState([]); // कई जगहें एक साथ (user की माँग: "Aakash, Dayal Singh, KV सब पर!")
+  const [state, setState] = useState("Delhi"); // पहले राज्य, फिर जगह (user की माँग 08-10)
+  const [places, setPlaces] = useState([]); // चुनी जगहें: {name, area, lat, lon} — lat/lon null = सिर्फ़ नाम से
   const [placeInput, setPlaceInput] = useState("");
+  const [suggestions, setSuggestions] = useState([]); // खोज से आए सुझाव (पते सहित)
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false); // कम से कम एक खोज पूरी हुई
+  const searchTimer = useRef(null);
   const [radiusKm, setRadiusKm] = useState(1);
   const [ageKey, setAgeKey] = useState("all");
   const [creative, setCreative] = useState(null); // AI से बना ad text (preview में दिखता है)
@@ -79,17 +97,52 @@ export default function AdsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** जगह list में जोड़ें (Enter या बटन से) */
+  /** नाम लिखते ही सुझाव — 400ms रुककर state के अंदर खोज (08-10 UX) */
+  function onPlaceInput(value) {
+    setPlaceInput(value);
+    setSearched(false);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    const q = value.trim();
+    if (q.length < 2) {
+      setSuggestions([]);
+      setSearching(false);
+      return;
+    }
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const found = await api.targeting.searchPlaces(q, state);
+        setSuggestions(found);
+      } catch {
+        setSuggestions([]);
+      }
+      setSearching(false);
+      setSearched(true);
+    }, 400);
+  }
+
+  /** सुझाव से जगह चुनी — सुई LOCK (पक्का पता, अंदाज़ा नहीं!) */
+  function selectSuggestion(s) {
+    if (places.some((p) => p.name === s.name) || places.length >= 10) return;
+    setPlaces([...places, { name: s.name, area: s.area, lat: s.lat, lon: s.lon }]);
+    setPlaceInput("");
+    setSuggestions([]);
+    setSearched(false);
+  }
+
+  /** हाथ से लिखी जगह जोड़ें (सुई बिना — launch पर खोजी जाएगी) */
   function addPlace() {
     const name = placeInput.trim();
-    if (name && !places.includes(name) && places.length < 10) {
-      setPlaces([...places, name]);
+    if (name && !places.some((p) => p.name === name) && places.length < 10) {
+      setPlaces([...places, { name, area: "", lat: null, lon: null }]);
     }
     setPlaceInput("");
+    setSuggestions([]);
+    setSearched(false);
   }
 
   function removePlace(name) {
-    setPlaces(places.filter((p) => p !== name));
+    setPlaces(places.filter((p) => p.name !== name));
   }
 
   /** Step 3 → 4: कम से कम एक जगह ज़रूरी (खास जगह चुनी हो तो)
@@ -98,8 +151,8 @@ export default function AdsPage() {
   function handleTargetingNext() {
     let finalPlaces = places;
     const typed = placeInput.trim();
-    if (geoType === "place" && typed && !places.includes(typed)) {
-      finalPlaces = [...places, typed];
+    if (geoType === "place" && typed && !places.some((p) => p.name === typed)) {
+      finalPlaces = [...places, { name: typed, area: "", lat: null, lon: null }];
       setPlaces(finalPlaces);
       setPlaceInput("");
     }
@@ -135,7 +188,15 @@ export default function AdsPage() {
       const age = AGE_OPTIONS.find((a) => a.key === ageKey) || AGE_OPTIONS[0];
       const targeting = {
         geo_type: geoType,
-        places: geoType === "place" ? places : null,
+        // locked जगहों की सुई साथ जाती है — backend को अंदाज़ा नहीं लगाना पड़ता
+        places:
+          geoType === "place"
+            ? places.map((p) => ({
+                name: p.name,
+                latitude: p.lat,
+                longitude: p.lon,
+              }))
+            : null,
         radius_km: geoType === "place" ? radiusKm : null,
         age_min: age.min,
         age_max: age.max,
@@ -198,7 +259,7 @@ export default function AdsPage() {
     const age = AGE_OPTIONS.find((a) => a.key === ageKey) || AGE_OPTIONS[0];
     let place = t("ads.yourCity");
     if (geoType === "place" && places.length > 0) {
-      place = places[0];
+      place = places[0].name;
       if (places.length > 1) place += ` +${places.length - 1} ${t("ads.morePlaces")}`;
       place += ` · ${radiusKm} km`;
     }
@@ -324,6 +385,23 @@ export default function AdsPage() {
           {/* STEP 3: दर्शक चुनें — कहाँ + किस उम्र को (user की माँग) */}
           {step === 3 && (
             <div className="space-y-4">
+              {/* पहले राज्य चुनें — फिर उसी राज्य की जगहें खोजी जाएँगी (user की माँग 08-10) */}
+              <p className="font-semibold text-gray-700">{t("ads.stateQ")}</p>
+              <select
+                value={state}
+                onChange={(e) => {
+                  setState(e.target.value);
+                  setSuggestions([]); // राज्य बदला तो पुराने सुझाव हटाएँ
+                }}
+                className="w-full rounded-xl border border-gray-300 bg-white p-3 font-semibold text-gray-800"
+              >
+                {STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+
               <p className="font-semibold text-gray-700">{t("ads.whereQ")}</p>
               <div className="grid grid-cols-2 gap-3">
                 <button
@@ -353,44 +431,95 @@ export default function AdsPage() {
               {/* खास जगह चुनी तो: कई जगहें जोड़ें + घेरा */}
               {geoType === "place" && (
                 <div className="space-y-3 rounded-xl bg-gray-50 p-3">
-                  <div className="flex gap-2">
-                    <input
-                      value={placeInput}
-                      onChange={(e) => setPlaceInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          addPlace();
-                        }
-                      }}
-                      placeholder={t("ads.placePlaceholder")}
-                      className="flex-1 rounded-xl border border-gray-300 p-3"
-                    />
-                    <button
-                      onClick={addPlace}
-                      className="rounded-xl bg-brand-500 px-4 font-bold text-white"
-                    >
-                      + {t("ads.addPlace")}
-                    </button>
-                  </div>
-                  {/* जुड़ी हुई जगहें — हटाने के लिए ✕ दबाएँ */}
-                  {places.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {places.map((p) => (
-                        <span
-                          key={p}
-                          className="flex items-center gap-1 rounded-full bg-brand-50 px-3 py-1 text-sm font-medium text-brand-600"
-                        >
-                          📍 {p}
-                          <button
-                            onClick={() => removePlace(p)}
-                            className="ml-1 font-bold text-gray-400"
-                          >
-                            ✕
-                          </button>
-                        </span>
-                      ))}
+                  {/* 🔍 खोज पेटी — नाम लिखते ही पते-सहित सुझाव, एक टैप में LOCK */}
+                  <div className="relative">
+                    <div className="flex gap-2">
+                      <input
+                        value={placeInput}
+                        onChange={(e) => onPlaceInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addPlace();
+                          }
+                        }}
+                        placeholder={t("ads.placePlaceholder")}
+                        className="flex-1 rounded-xl border border-gray-300 p-3"
+                      />
+                      <button
+                        onClick={addPlace}
+                        className="rounded-xl bg-brand-500 px-4 font-bold text-white"
+                      >
+                        + {t("ads.addPlace")}
+                      </button>
                     </div>
+                    {/* सुझाव सूची — नाम बड़ा, पता छोटा */}
+                    {(searching || suggestions.length > 0) && (
+                      <div className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                        {searching && (
+                          <p className="p-3 text-sm text-gray-500">
+                            {t("ads.searching")}
+                          </p>
+                        )}
+                        {!searching &&
+                          suggestions.map((s, i) => (
+                            <button
+                              key={`${s.name}-${i}`}
+                              onClick={() => selectSuggestion(s)}
+                              className="block w-full border-b border-gray-100 p-3 text-left last:border-0 hover:bg-green-50"
+                            >
+                              <p className="font-semibold text-gray-800">
+                                📌 {s.name}
+                              </p>
+                              {s.area && (
+                                <p className="text-xs text-gray-500">{s.area}</p>
+                              )}
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* खाली नतीजे — spelling बदलने को कहो */}
+                  {!searching &&
+                    searched &&
+                    suggestions.length === 0 &&
+                    placeInput.trim().length >= 2 && (
+                      <p className="text-sm text-orange-600">
+                        {t("ads.noResults")}
+                      </p>
+                    )}
+                  {/* जुड़ी हुई जगहें — 🟢 हरा = पक्का पता LOCK, नीला = नाम से */}
+                  {places.length > 0 && (
+                    <>
+                      <div className="flex flex-wrap gap-2">
+                        {places.map((p) => (
+                          <span
+                            key={p.name}
+                            className={`flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium ${
+                              p.lat != null
+                                ? "bg-green-100 text-green-800"
+                                : "bg-brand-50 text-brand-600"
+                            }`}
+                          >
+                            {p.lat != null ? "📌" : "📍"} {p.name}
+                            {p.area ? (
+                              <span className="max-w-32 truncate text-xs opacity-70">
+                                · {p.area}
+                              </span>
+                            ) : null}
+                            <button
+                              onClick={() => removePlace(p.name)}
+                              className="ml-1 font-bold text-gray-400"
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {t("ads.lockedHint")}
+                      </p>
+                    </>
                   )}
                   <p className="text-sm font-semibold text-gray-700">
                     {t("ads.radiusQ")}

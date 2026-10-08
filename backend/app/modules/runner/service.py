@@ -133,7 +133,25 @@ async def launch_campaign(
                 places = [targeting["place_name"]]
             radius = max(1, int(targeting.get("radius_km", 1)))
             found = []
-            for pname in places[:10]:  # अधिकतम 10 सुएँ
+            for p in places[:10]:  # अधिकतम 10 सुएँ
+                # नया (08-10): autocomplete से चुनी जगह की सुई पहले से
+                # lock होती है — अंदाज़ा नहीं, पक्का पता सीधे चलता है
+                if isinstance(p, dict):
+                    lat, lon = p.get("latitude"), p.get("longitude")
+                    if lat is not None and lon is not None:
+                        found.append(
+                            {
+                                "latitude": float(lat),
+                                "longitude": float(lon),
+                                "radius_km": radius,
+                            }
+                        )
+                        continue
+                    pname = str(p.get("name", "")).strip()
+                else:
+                    pname = str(p).strip()
+                if not pname:
+                    continue
                 point = await _geocode_place(pname, tenant.city)
                 if point:
                     found.append({**point, "radius_km": radius})

@@ -19,6 +19,7 @@ from app.modules.runner.routes import router as runner_router
 from app.modules.reports.routes import router as reports_router
 from app.modules.payments.routes import router as payments_router
 from app.modules.i18n.routes import router as i18n_router
+from app.modules.targeting.routes import router as targeting_router
 from app.modules.whatsapp.routes import router as whatsapp_router
 
 api_router = APIRouter()
@@ -36,4 +37,5 @@ api_router.include_router(runner_router, prefix="/campaigns", tags=["campaigns"]
 api_router.include_router(reports_router, prefix="/reports", tags=["reports"])
 api_router.include_router(payments_router, prefix="/payments", tags=["payments"])
 api_router.include_router(i18n_router, prefix="/i18n", tags=["i18n"])
+api_router.include_router(targeting_router, prefix="/targeting", tags=["targeting"])
 api_router.include_router(whatsapp_router, prefix="/whatsapp", tags=["whatsapp"])

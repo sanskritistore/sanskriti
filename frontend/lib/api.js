@@ -180,6 +180,14 @@ export function APIProvider({ children }) {
           call("/ad-studio/generate", { method: "POST", body: data }),
       },
 
+      // जगह खोज — state के अंदर नाम लिखते ही पते-सहित सुझाव (08-10 UX)
+      targeting: {
+        searchPlaces: (q, state) =>
+          call(
+            `/targeting/search-places?q=${encodeURIComponent(q)}&state=${encodeURIComponent(state)}`
+          ),
+      },
+
       // Campaigns — असली Meta पर launch होने वाली campaigns (runner)
       campaigns: {
         list: () => call("/campaigns"),
