@@ -50,6 +50,9 @@ export default function AdsPage() {
   const [audienceId, setAudienceId] = useState(null);
   const [audienceName, setAudienceName] = useState("");
   const [audiencesLoading, setAudiencesLoading] = useState(false);
+  // 📞 Ad flow के अंदर ही नए numbers जोड़ने का खाना (user की माँग 09-10 शाम)
+  const [newPhones, setNewPhones] = useState("");
+  const [addingPhones, setAddingPhones] = useState(false);
   const [state, setState] = useState("Delhi"); // पहले राज्य, फिर जगह (user की माँग 08-10)
   const [places, setPlaces] = useState([]); // चुनी जगहें: {name, area, lat, lon} — lat/lon null = सिर्फ़ नाम से
   const [placeInput, setPlaceInput] = useState("");
@@ -212,6 +215,33 @@ export default function AdsPage() {
     }
   }
 
+  /** 📞 चुनी सूची में नए numbers जोड़ो — flow छोड़े बिना (user की माँग) */
+  async function addPhonesToList() {
+    if (!audienceId) {
+      setToast(t("ads.listNeeded"));
+      setTimeout(() => setToast(""), 3000);
+      return;
+    }
+    const phones = newPhones
+      .split(/[\n,;]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (phones.length === 0) return;
+    setAddingPhones(true);
+    try {
+      const res = await api.audiences.upload(audienceId, phones);
+      setToast(`✅ ${res.received} ${t("ads.phonesAdded")}`);
+      setNewPhones("");
+      setTimeout(() => setToast(""), 4000);
+    } catch (err) {
+      // Silent-fail नियम: error साफ़ दिखे
+      setToast(err?.message || t("login.error.generic"));
+      setTimeout(() => setToast(""), 5000);
+    } finally {
+      setAddingPhones(false);
+    }
+  }
+
   /** Step 3 → 4: AI से ad text बनवाकर PREVIEW दिखाएँ (पहले दिखेगी, फिर पैसा लगेगा) */
   async function goToPreview() {
     setStep(4);
@@ -298,6 +328,7 @@ export default function AdsPage() {
     setGeoType("city");
     setAudienceId(null);
     setAudienceName("");
+    setNewPhones("");
     setPlaces([]);
     setPlaceInput("");
     setRadiusKm(1);
@@ -538,6 +569,28 @@ export default function AdsPage() {
                       <p className="text-xs text-gray-500">
                         {t("ads.listHint")}
                       </p>
+                      {/* 📞 इसी सूची में नए numbers जोड़ो — flow छोड़े बिना (user की माँग) */}
+                      <div className="space-y-2 rounded-xl border border-dashed border-gray-300 bg-white p-3">
+                        <p className="text-sm font-semibold text-gray-700">
+                          {t("ads.addPhonesQ")}
+                        </p>
+                        <textarea
+                          rows={3}
+                          value={newPhones}
+                          onChange={(e) => setNewPhones(e.target.value)}
+                          placeholder={t("ads.phonesPlaceholder")}
+                          className="w-full rounded-xl border border-gray-300 p-3 text-sm"
+                        />
+                        <button
+                          onClick={addPhonesToList}
+                          disabled={addingPhones || !newPhones.trim()}
+                          className="w-full rounded-xl bg-brand-500 p-3 font-bold text-white disabled:opacity-50"
+                        >
+                          {addingPhones
+                            ? t("customers.adding")
+                            : t("ads.addPhonesBtn")}
+                        </button>
+                      </div>
                     </>
                   )}
                 </div>

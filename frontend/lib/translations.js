@@ -138,6 +138,10 @@ export const translations = {
     "ads.listNeeded": "पहले एक ग्राहक सूची चुनें",
     "ads.listHint":
       "Ad सिर्फ़ उन्हीं लोगों को दिखेगी जिनके numbers सूची में हैं (100+ numbers रखें तो दमदार चलेगा)",
+    "ads.addPhonesQ": "➕ इसी सूची में नए numbers जोड़ो:",
+    "ads.phonesPlaceholder": "एक line में एक number लिखो या paste करो…",
+    "ads.addPhonesBtn": "Numbers जोड़ो",
+    "ads.phonesAdded": "numbers सूची में जुड़ गए!",
     "ads.stateQ": "पहले राज्य चुनें:",
     "ads.placePlaceholder": "नाम लिखो — सुझाव पते के साथ आएँगे 🔍",
     "ads.searching": "🔍 खोज रहे हैं…",
@@ -349,6 +353,10 @@ export const translations = {
     "ads.listNeeded": "Pick a customer list first",
     "ads.listHint":
       "Ad shows only to people whose numbers are in the list (keep 100+ numbers for best results)",
+    "ads.addPhonesQ": "➕ Add new numbers to this list:",
+    "ads.phonesPlaceholder": "Type or paste one number per line…",
+    "ads.addPhonesBtn": "Add numbers",
+    "ads.phonesAdded": "numbers added to the list!",
     "ads.stateQ": "First pick your state:",
     "ads.placePlaceholder": "Type a name — suggestions show with address 🔍",
     "ads.searching": "🔍 Searching…",
