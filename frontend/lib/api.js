@@ -225,6 +225,17 @@ export function APIProvider({ children }) {
         whoSaw: () => call("/reports/who-saw"),
       },
 
+      // Audiences — ग्राहक phone lists → Meta Custom Audience (09-10 user idea)
+      audiences: {
+        list: () => call("/audiences"),
+        create: (data) => call("/audiences", { method: "POST", body: data }),
+        upload: (id, phones) =>
+          call(`/audiences/${id}/upload`, {
+            method: "POST",
+            body: { phones },
+          }),
+      },
+
       // Token management
       token,
       setAuthToken,

@@ -22,6 +22,7 @@ from app.modules.i18n.routes import router as i18n_router
 from app.modules.targeting.routes import router as targeting_router
 from app.modules.billing.routes import router as billing_router
 from app.modules.whatsapp.routes import router as whatsapp_router
+from app.modules.audiences.routes import router as audiences_router
 
 api_router = APIRouter()
 
@@ -41,3 +42,4 @@ api_router.include_router(i18n_router, prefix="/i18n", tags=["i18n"])
 api_router.include_router(targeting_router, prefix="/targeting", tags=["targeting"])
 api_router.include_router(billing_router, prefix="/billing", tags=["billing"])
 api_router.include_router(whatsapp_router, prefix="/whatsapp", tags=["whatsapp"])
+api_router.include_router(audiences_router, prefix="/audiences", tags=["audiences"])

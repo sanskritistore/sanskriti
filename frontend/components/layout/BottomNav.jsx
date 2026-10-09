@@ -11,6 +11,7 @@ import { useLanguage } from "@/lib/LanguageContext";
 const ITEMS = [
   { href: "/products", icon: "📦", key: "nav.products" },
   { href: "/ads", icon: "📣", key: "nav.ads" },
+  { href: "/customers", icon: "👥", key: "nav.customers" },
   { href: "/reports", icon: "📊", key: "nav.reports" },
   { href: "/settings", icon: "⚙️", key: "nav.settings" },
 ];

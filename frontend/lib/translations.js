@@ -49,6 +49,32 @@ export const translations = {
     "nav.ads": "विज्ञापन",
     "nav.reports": "रिपोर्ट",
     "nav.settings": "सेटिंग्स",
+    "nav.customers": "ग्राहक",
+
+    // Customers — ग्राहक सूची (Custom Audience, 09-10 user का idea)
+    "customers.title": "ग्राहक सूची",
+    "customers.subtitle":
+      "अपने ग्राहकों के phone numbers डालो — आपकी ad सीधे उन्हीं लोगों को दिखेगी",
+    "customers.hint":
+      "💡 कम से कम 100 numbers डालो — 1000 numbers = दमदार ad! Meta हर number को नहीं ढूँढ पाता (60-70% मिलते हैं), यह normal है।",
+    "customers.yourLists": "आपकी lists",
+    "customers.empty": "अभी कोई ग्राहक list नहीं — पहली list बनाओ!",
+    "customers.people": "लोग (अंदाज़ा)",
+    "customers.counting": "Meta गिन रहा है…",
+    "customers.newList": "नई list",
+    "customers.listName": "List का नाम",
+    "customers.listNameHint": "जैसे: दुकान के पुराने ग्राहक",
+    "customers.numbersLabel": "Phone numbers — एक line में एक",
+    "customers.numbersHint": "जैसे:\n9873152325\n9873152326\n9873152327",
+    "customers.parsed": "{count} numbers मिले",
+    "customers.addNumbers": "Numbers जोड़ो",
+    "customers.adding": "जोड़ रहे हैं…",
+    "customers.success": "🎉 {count} numbers पहुँच गए!",
+    "customers.successNote":
+      "Meta अब इन्हें match करेगा — गिनती कुछ घंटों में दिखने लगेगी।",
+    "customers.invalidSkipped": "({count} numbers ठीक नहीं थे — छोड़ दिए)",
+    "customers.errorNoNumbers": "कम से कम एक सही mobile number डालो (10 अंक)",
+    "customers.errorNoName": "पहले list का नाम लिखो",
 
     // Products
     "products.title": "आपके प्रोडक्ट",
@@ -203,6 +229,32 @@ export const translations = {
     // Language toggle
     "lang.toggle": "हिंदी",
     "lang.current": "Language",
+
+    // Customers — phone lists (Custom Audience)
+    "nav.customers": "Customers",
+    "customers.title": "Customer Lists",
+    "customers.subtitle":
+      "Add your customers' phone numbers — your ad shows directly to them",
+    "customers.hint":
+      "💡 Add at least 100 numbers — 1000 numbers = powerful ads! Meta can't match every number (60-70% match), that's normal.",
+    "customers.yourLists": "Your lists",
+    "customers.empty": "No customer list yet — create your first!",
+    "customers.people": "people (approx)",
+    "customers.counting": "Meta is counting…",
+    "customers.newList": "New list",
+    "customers.listName": "List name",
+    "customers.listNameHint": "e.g. Old shop customers",
+    "customers.numbersLabel": "Phone numbers — one per line",
+    "customers.numbersHint": "e.g.:\n9873152325\n9873152326\n9873152327",
+    "customers.parsed": "{count} numbers found",
+    "customers.addNumbers": "Add numbers",
+    "customers.adding": "Adding…",
+    "customers.success": "🎉 {count} numbers delivered!",
+    "customers.successNote":
+      "Meta will now match them — the count will appear in a few hours.",
+    "customers.invalidSkipped": "({count} numbers were invalid — skipped)",
+    "customers.errorNoNumbers": "Add at least one valid mobile number (10 digits)",
+    "customers.errorNoName": "Write a list name first",
 
     // Auth / Login (phone OTP)
     "login.title": "Login with your phone number",
