@@ -32,28 +32,25 @@ export default function ProductsPage() {
   const [toast, setToast] = useState("");
   const [enhanceText, setEnhanceText] = useState("");
   const [enhancing, setEnhancing] = useState(false);
+  const [enhanceProgress, setEnhanceProgress] = useState("");
 
+  // ✨ सब user के phone में होता है — server पर बोझ शून्य
   async function handleEnhance() {
     if (!photo || enhancing) return;
     setEnhancing(true);
+    setEnhanceProgress("");
     try {
-      const res = await api.photoStudio.enhance({
-        image: photo,
-        text: enhanceText.trim() || null,
-      });
-      if (res?.image) {
-        setPhoto(res.image);
-        setToast(t("products.enhanceDone"));
-        setTimeout(() => setToast(""), 2500);
-      } else {
-        setToast(t("products.enhanceFail"));
-        setTimeout(() => setToast(""), 3000);
-      }
+      const { enhancePhoto } = await import("../../../lib/photoStudio");
+      const out = await enhancePhoto(photo, enhanceText.trim(), setEnhanceProgress);
+      setPhoto(out);
+      setToast(t("products.enhanceDone"));
+      setTimeout(() => setToast(""), 2500);
     } catch {
       setToast(t("products.enhanceFail"));
       setTimeout(() => setToast(""), 3000);
     } finally {
       setEnhancing(false);
+      setEnhanceProgress("");
     }
   }
 
@@ -165,7 +162,7 @@ export default function ProductsPage() {
                     onClick={handleEnhance}
                     disabled={enhancing}
                   >
-                    {enhancing ? t("products.enhancing") : t("products.enhance")}
+                    {enhancing ? "⏳ " + (enhanceProgress || t("products.enhancing")) : t("products.enhance")}
                   </button>
                 </div>
               )}

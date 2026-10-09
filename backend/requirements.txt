@@ -31,5 +31,3 @@ pydantic-settings==2.6.0
 pillow==10.4.0
 
 # फ़ोटो स्टूडियो — background हटाना (u2netp model, अपने server पर, ₹0)
-rembg==2.0.60
-onnxruntime==1.19.2
