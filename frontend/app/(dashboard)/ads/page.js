@@ -44,7 +44,12 @@ export default function AdsPage() {
   const [step, setStep] = useState(1);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [budget, setBudget] = useState(null);
-  const [geoType, setGeoType] = useState("city"); // city | place
+  const [geoType, setGeoType] = useState("city"); // city | place | list
+  // 📞 ग्राहक-सूची targeting (09-10 user idea): सेव किए phone numbers वालों को ad
+  const [audiences, setAudiences] = useState([]);
+  const [audienceId, setAudienceId] = useState(null);
+  const [audienceName, setAudienceName] = useState("");
+  const [audiencesLoading, setAudiencesLoading] = useState(false);
   const [state, setState] = useState("Delhi"); // पहले राज्य, फिर जगह (user की माँग 08-10)
   const [places, setPlaces] = useState([]); // चुनी जगहें: {name, area, lat, lon} — lat/lon null = सिर्फ़ नाम से
   const [placeInput, setPlaceInput] = useState("");
@@ -182,7 +187,29 @@ export default function AdsPage() {
       setTimeout(() => setToast(""), 3000);
       return;
     }
+    if (geoType === "list" && !audienceId) {
+      setToast(t("ads.listNeeded"));
+      setTimeout(() => setToast(""), 3000);
+      return;
+    }
     goToPreview();
+  }
+
+  /** 📞 ग्राहक-सूची mode चुनते ही Meta की lists लाएँ (एक बार) */
+  async function pickListMode() {
+    setGeoType("list");
+    if (audiences.length > 0 || audiencesLoading) return;
+    setAudiencesLoading(true);
+    try {
+      const data = await api.audiences.list();
+      setAudiences(data.audiences || []);
+    } catch (err) {
+      // Silent-fail नियम: error साफ़ दिखे
+      setToast(err?.message || t("login.error.generic"));
+      setTimeout(() => setToast(""), 5000);
+    } finally {
+      setAudiencesLoading(false);
+    }
   }
 
   /** Step 3 → 4: AI से ad text बनवाकर PREVIEW दिखाएँ (पहले दिखेगी, फिर पैसा लगेगा) */
@@ -209,6 +236,8 @@ export default function AdsPage() {
       const age = AGE_OPTIONS.find((a) => a.key === ageKey) || AGE_OPTIONS[0];
       const targeting = {
         geo_type: geoType,
+        // 📞 ग्राहक-सूची चुनी हो तो वही दर्शक — geo नहीं जाता
+        audience_id: geoType === "list" ? audienceId : null,
         // locked जगहों की सुई साथ जाती है — backend को अंदाज़ा नहीं लगाना पड़ता
         places:
           geoType === "place"
@@ -267,6 +296,8 @@ export default function AdsPage() {
     setSelectedProduct(null);
     setBudget(null);
     setGeoType("city");
+    setAudienceId(null);
+    setAudienceName("");
     setPlaces([]);
     setPlaceInput("");
     setRadiusKm(1);
@@ -278,6 +309,9 @@ export default function AdsPage() {
   /** Preview में दिखने वाला दर्शक-सारांश (जैसे: "आकाश इंस्टिट्यूट +2 और · 1 km · 👥 18-25") */
   function targetingSummary() {
     const age = AGE_OPTIONS.find((a) => a.key === ageKey) || AGE_OPTIONS[0];
+    if (geoType === "list") {
+      return `📞 ${audienceName} · 👥 ${t(age.labelKey)}`;
+    }
     let place = t("ads.yourCity");
     if (geoType === "place" && places.length > 0) {
       place = places[0].name;
@@ -407,21 +441,25 @@ export default function AdsPage() {
           {step === 3 && (
             <div className="space-y-4">
               {/* पहले राज्य चुनें — फिर उसी राज्य की जगहें खोजी जाएँगी (user की माँग 08-10) */}
-              <p className="font-semibold text-gray-700">{t("ads.stateQ")}</p>
-              <select
-                value={state}
-                onChange={(e) => {
-                  setState(e.target.value);
-                  setSuggestions([]); // राज्य बदला तो पुराने सुझाव हटाएँ
-                }}
-                className="w-full rounded-xl border border-gray-300 bg-white p-3 font-semibold text-gray-800"
-              >
-                {STATES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+              {geoType !== "list" && (
+                <>
+                  <p className="font-semibold text-gray-700">{t("ads.stateQ")}</p>
+                  <select
+                    value={state}
+                    onChange={(e) => {
+                      setState(e.target.value);
+                      setSuggestions([]); // राज्य बदला तो पुराने सुझाव हटाएँ
+                    }}
+                    className="w-full rounded-xl border border-gray-300 bg-white p-3 font-semibold text-gray-800"
+                  >
+                    {STATES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
 
               <p className="font-semibold text-gray-700">{t("ads.whereQ")}</p>
               <div className="grid grid-cols-2 gap-3">
@@ -448,6 +486,62 @@ export default function AdsPage() {
                   </p>
                 </button>
               </div>
+
+              {/* 📞 ग्राहक-सूची card — सेव किए phone numbers वालों को ad (09-10 user idea) */}
+              <button
+                onClick={pickListMode}
+                className={`card w-full text-left transition-colors ${
+                  geoType === "list" ? "ring-2 ring-brand-500" : ""
+                }`}
+              >
+                <div className="text-2xl">📞</div>
+                <p className="mt-1 font-semibold">{t("ads.locList")}</p>
+                <p className="text-xs text-gray-500">{t("ads.locListSub")}</p>
+              </button>
+
+              {/* ग्राहक-सूची चुनी तो: Meta lists में से एक चुनें */}
+              {geoType === "list" && (
+                <div className="space-y-3 rounded-xl bg-gray-50 p-3">
+                  {audiencesLoading && (
+                    <p className="p-2 text-sm text-gray-500">
+                      {t("ads.searching")}
+                    </p>
+                  )}
+                  {!audiencesLoading && audiences.length === 0 && (
+                    <p className="rounded-xl bg-orange-50 p-3 text-sm font-semibold text-orange-700">
+                      {t("ads.noLists")}
+                    </p>
+                  )}
+                  {!audiencesLoading && audiences.length > 0 && (
+                    <>
+                      <p className="font-semibold text-gray-700">
+                        {t("ads.pickList")}
+                      </p>
+                      <select
+                        value={audienceId || ""}
+                        onChange={(e) => {
+                          const a = audiences.find(
+                            (x) => x.id === e.target.value
+                          );
+                          setAudienceId(e.target.value || null);
+                          setAudienceName(a ? a.name : "");
+                        }}
+                        className="w-full rounded-xl border border-gray-300 bg-white p-3 font-semibold text-gray-800"
+                      >
+                        <option value="">—</option>
+                        {audiences.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500">
+                        {t("ads.listHint")}
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
 
               {/* खास जगह चुनी तो: कई जगहें जोड़ें + घेरा */}
               {geoType === "place" && (

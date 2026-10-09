@@ -126,8 +126,10 @@ async def launch_campaign(
         # Ad Set: दर्शक (जगह + उम्र) + रोज़ का बजट (₹ में)
         # Tenant ने चुना: शहर के आसपास | किसी खास जगह के घेरे में (सुई+घेरा)
         targeting = _parse_targeting(campaign)
+        # 📞 ग्राहक-सूची (phone numbers) targeting — user का idea (09-10)
+        audience_id = targeting.get("audience_id")
         custom_locations = None
-        if targeting.get("geo_type") == "place":
+        if not audience_id and targeting.get("geo_type") == "place":
             # कई जगहें एक साथ (user की माँग 07-10: "Aakash, Dayal Singh, KV सब पर!")
             places = targeting.get("places") or []
             if not places and targeting.get("place_name"):  # पुराना single format
@@ -170,6 +172,7 @@ async def launch_campaign(
             age_min=int(targeting.get("age_min", 18)),
             age_max=int(targeting.get("age_max", 65)),
             custom_locations=custom_locations,
+            custom_audience_ids=[audience_id] if audience_id else None,
         )
 
         # Creative: हिंदी text + WhatsApp बटन

@@ -130,6 +130,14 @@ export const translations = {
     "ads.locCitySub": "पूरे शहर के लोगों को",
     "ads.locPlace": "किसी खास जगह के पास",
     "ads.locPlaceSub": "coaching, college, school, बाज़ार",
+    "ads.locList": "📞 मेरी ग्राहक सूची को",
+    "ads.locListSub": "सेव किए phone numbers वालों को दिखेगा",
+    "ads.pickList": "सूची चुनें:",
+    "ads.noLists":
+      "अभी कोई सूची नहीं — पहले 👥 ग्राहक section में numbers जोड़कर सूची बनाएँ",
+    "ads.listNeeded": "पहले एक ग्राहक सूची चुनें",
+    "ads.listHint":
+      "Ad सिर्फ़ उन्हीं लोगों को दिखेगी जिनके numbers सूची में हैं (100+ numbers रखें तो दमदार चलेगा)",
     "ads.stateQ": "पहले राज्य चुनें:",
     "ads.placePlaceholder": "नाम लिखो — सुझाव पते के साथ आएँगे 🔍",
     "ads.searching": "🔍 खोज रहे हैं…",
@@ -333,6 +341,14 @@ export const translations = {
     "ads.locCitySub": "Everyone in the city",
     "ads.locPlace": "Near a special place",
     "ads.locPlaceSub": "coaching, college, school, market",
+    "ads.locList": "📞 My customer list",
+    "ads.locListSub": "Show to saved phone numbers",
+    "ads.pickList": "Pick a list:",
+    "ads.noLists":
+      "No lists yet — first add numbers and make a list in the 👥 Customers section",
+    "ads.listNeeded": "Pick a customer list first",
+    "ads.listHint":
+      "Ad shows only to people whose numbers are in the list (keep 100+ numbers for best results)",
     "ads.stateQ": "First pick your state:",
     "ads.placePlaceholder": "Type a name — suggestions show with address 🔍",
     "ads.searching": "🔍 Searching…",

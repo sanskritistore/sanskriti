@@ -199,6 +199,7 @@ class MetaAdapter(BasePlatformAdapter):
         age_min: int = 18,
         age_max: int = 65,
         custom_locations: list[dict] | None = None,
+        custom_audience_ids: list[str] | None = None,
         optimization_goal: str = "REACH",
         billing_event: str = "IMPRESSIONS",
     ) -> str:
@@ -209,25 +210,40 @@ class MetaAdapter(BasePlatformAdapter):
         सुरक्षा: हमेशा PAUSED बनता है।
         custom_locations: [{"latitude","longitude","radius_km"}] — सुई+घेरा
         targeting (जैसे किसी coaching institute के 1 km घेरे में)।
+        custom_audience_ids: ग्राहक-सूची (phone numbers) वालों को दिखाएँ —
+        यह चुनी हो तो geo targeting नहीं लगती (सूची ही दर्शक है)।
         """
-        if custom_locations:
-            geo = {
-                "custom_locations": [
-                    {
-                        "latitude": loc["latitude"],
-                        "longitude": loc["longitude"],
-                        "radius": loc.get("radius_km", 1),
-                        "distance_unit": "kilometer",
-                    }
-                    for loc in custom_locations
-                ],
+        if custom_audience_ids:
+            # ग्राहक सूची = पूरा दर्शक — शहर/जगह की geo बाध्यता नहीं
+            targeting = {
+                "custom_audiences": [{"id": aid} for aid in custom_audience_ids],
+                "age_min": age_min,
+                "age_max": age_max,
             }
         else:
-            geo = {
-                "cities": [
-                    {"key": key, "radius": 25, "distance_unit": "mile"}
-                    for key in geo_city_keys
-                ],
+            if custom_locations:
+                geo = {
+                    "custom_locations": [
+                        {
+                            "latitude": loc["latitude"],
+                            "longitude": loc["longitude"],
+                            "radius": loc.get("radius_km", 1),
+                            "distance_unit": "kilometer",
+                        }
+                        for loc in custom_locations
+                    ],
+                }
+            else:
+                geo = {
+                    "cities": [
+                        {"key": key, "radius": 25, "distance_unit": "mile"}
+                        for key in geo_city_keys
+                    ],
+                }
+            targeting = {
+                "geo_locations": geo,
+                "age_min": age_min,
+                "age_max": age_max,
             }
         payload = {
             "name": name,
@@ -236,11 +252,7 @@ class MetaAdapter(BasePlatformAdapter):
             "billing_event": billing_event,
             "optimization_goal": optimization_goal,
             "bid_strategy": "LOWEST_COST_WITHOUT_CAP",  # बिना सीमा वाली सबसे-सस्ती बोली (v26 अनिवार्य)
-            "targeting": {
-                "geo_locations": geo,
-                "age_min": age_min,
-                "age_max": age_max,
-            },
+            "targeting": targeting,
             "status": "PAUSED",
             "is_adset_budget_sharing_enabled": False,
         }
