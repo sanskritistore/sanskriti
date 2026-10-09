@@ -30,6 +30,32 @@ export default function ProductsPage() {
   const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
+  const [enhanceText, setEnhanceText] = useState("");
+  const [enhancing, setEnhancing] = useState(false);
+
+  async function handleEnhance() {
+    if (!photo || enhancing) return;
+    setEnhancing(true);
+    try {
+      const res = await api.photoStudio.enhance({
+        image: photo,
+        text: enhanceText.trim() || null,
+      });
+      if (res?.image) {
+        setPhoto(res.image);
+        setToast(t("products.enhanceDone"));
+        setTimeout(() => setToast(""), 2500);
+      } else {
+        setToast(t("products.enhanceFail"));
+        setTimeout(() => setToast(""), 3000);
+      }
+    } catch {
+      setToast(t("products.enhanceFail"));
+      setTimeout(() => setToast(""), 3000);
+    } finally {
+      setEnhancing(false);
+    }
+  }
 
   async function loadProducts() {
     try {
@@ -73,6 +99,7 @@ export default function ProductsPage() {
     setPhoto(null);
     setName("");
     setPrice("");
+    setEnhanceText("");
   }
 
   async function handleDelete(id) {
@@ -124,8 +151,26 @@ export default function ProductsPage() {
           {step === 1 && (
             <div className="space-y-4">
               <PhotoPicker value={photo} onChange={setPhoto} hint={t("products.photoHint")} />
-              <button className="btn-primary w-full" onClick={() => setStep(2)}>
-                {t("next")}
+              {photo && (
+                <div className="space-y-3 rounded-xl bg-brand-50 p-3">
+                  <input
+                    className="input"
+                    value={enhanceText}
+                    onChange={(e) => setEnhanceText(e.target.value)}
+                    placeholder={t("products.enhanceText")}
+                    maxLength={50}
+                  />
+                  <button
+                    className="btn-secondary w-full"
+                    onClick={handleEnhance}
+                    disabled={enhancing}
+                  >
+                    {enhancing ? t("products.enhancing") : t("products.enhance")}
+                  </button>
+                </div>
+              )}
+              <button className="btn-primary w-full" onClick={() => setStep(2)} disabled={enhancing}>
+                {enhancing ? t("products.enhancing") : t("next")}
               </button>
             </div>
           )}

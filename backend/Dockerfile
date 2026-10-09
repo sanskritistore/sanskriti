@@ -14,6 +14,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# rembg u2netp model build में ही download करें (4.7MB) —
+# runtime पर download नहीं होगा, पहली photo भी तेज़ बनेगी
+RUN python -c "from rembg import new_session; new_session('u2netp')"
+
 # एप्लीकेशन कोड कॉपी करें
 COPY . .
 

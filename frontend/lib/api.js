@@ -179,6 +179,11 @@ export function APIProvider({ children }) {
           call(`/products/${id}`, { method: "PUT", body: data }),
         delete: (id) => call(`/products/${id}`, { method: "DELETE" }),
       },
+      // फ़ोटो स्टूडियो — white background + लिखावट (30-60s लग सकते हैं)
+      photoStudio: {
+        enhance: (data) =>
+          call("/photo-studio/enhance", { method: "POST", body: data }),
+      },
 
       // Ads
       ads: {

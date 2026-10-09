@@ -62,6 +62,11 @@ export const translations = {
     "products.step1": "फोटो लें",
     "products.step2": "नाम और कीमत डालें",
     "products.step3": "सेव करें",
+    "products.enhance": "✨ सुंदर बनाओ (white background)",
+    "products.enhancing": "फोटो सुंदर बन रही है… 30-60 सेकंड ☕",
+    "products.enhanceText": "फोटो पर लिखावट — नाम/दाम (ज़रूरी नहीं)",
+    "products.enhanceFail": "फोटो सुंदर नहीं बन पाई — दूसरी फोटो आज़माएँ",
+    "products.enhanceDone": "फोटो तैयार! 🎉",
 
     // Ads (3-step flow)
     "ads.working": "AI आपका विज्ञापन बना रहा है…",
@@ -233,6 +238,11 @@ export const translations = {
     "products.step1": "Take photo",
     "products.step2": "Enter name & price",
     "products.step3": "Save",
+    "products.enhance": "✨ Beautify (white background)",
+    "products.enhancing": "Beautifying photo… 30-60 seconds ☕",
+    "products.enhanceText": "Text on photo — name/price (optional)",
+    "products.enhanceFail": "Could not beautify — try another photo",
+    "products.enhanceDone": "Photo ready! 🎉",
 
     // Ads (3-step flow)
     "ads.working": "AI is creating your ad…",
