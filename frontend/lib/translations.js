@@ -74,6 +74,14 @@ export const translations = {
       "Meta अब इन्हें match करेगा — गिनती कुछ घंटों में दिखने लगेगी।",
     "customers.invalidSkipped": "({count} numbers ठीक नहीं थे — छोड़ दिए)",
     "customers.errorNoNumbers": "कम से कम एक सही mobile number डालो (10 अंक)",
+    "customers.removeTitle": "🗑️ गलती से जुड़ा number हटाओ",
+    "customers.removeHint":
+      "जो number गलती से add हो गया, वह यहाँ डालो — सूची से हटा दिया जाएगा।",
+    "customers.removePickList": "किस सूची से हटाना है? — सूची चुनो",
+    "customers.removeBtn": "Number हटाओ",
+    "customers.removing": "हटा रहे हैं…",
+    "customers.removed": "✅ {count} numbers हटाने की request पहुँच गई!",
+    "customers.removedNote": "Meta कुछ घंटों में सूची update कर देगा।",
     "customers.errorNoName": "पहले list का नाम लिखो",
 
     // Products
@@ -266,6 +274,14 @@ export const translations = {
       "Meta will now match them — the count will appear in a few hours.",
     "customers.invalidSkipped": "({count} numbers were invalid — skipped)",
     "customers.errorNoNumbers": "Add at least one valid mobile number (10 digits)",
+    "customers.removeTitle": "🗑️ Remove a number added by mistake",
+    "customers.removeHint":
+      "Enter the number added by mistake — it will be removed from the list.",
+    "customers.removePickList": "Which list to remove from? — pick a list",
+    "customers.removeBtn": "Remove number",
+    "customers.removing": "Removing…",
+    "customers.removed": "✅ Request to remove {count} numbers sent!",
+    "customers.removedNote": "Meta will update the list in a few hours.",
     "customers.errorNoName": "Write a list name first",
 
     // Auth / Login (phone OTP)

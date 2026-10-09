@@ -234,6 +234,11 @@ export function APIProvider({ children }) {
             method: "POST",
             body: { phones },
           }),
+        remove: (id, phones) =>
+          call(`/audiences/${id}/remove`, {
+            method: "POST",
+            body: { phones },
+          }),
       },
 
       // Token management

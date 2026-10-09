@@ -194,3 +194,55 @@ async def upload_phones(
         # ईमानदार hint: audience भरने में Meta को थोड़ा समय लगता है
         "note": "Numbers पहुँच गए! Meta अब match करेगा — गिनती कुछ घंटों में दिखेगी।",
     }
+
+
+@router.post("/{audience_id}/remove")
+async def remove_phones(
+    audience_id: str,
+    body: PhonesUpload,
+    tenant_id: int = Depends(get_current_tenant_id),  # noqa: ARG001
+) -> dict:
+    """
+    गलती से जुड़ा number हटाओ (user की माँग 09-10 शाम)।
+
+    Meta का DELETE /{audience_id}/users — वही payload/session ढाँचा
+    जो add में जाता है; Meta match करके हटा देता है।
+    """
+    valid, invalid = [], 0
+    seen = set()
+    for raw in body.phones:
+        norm = _normalize_indian_phone(raw)
+        if norm is None or norm in seen:
+            invalid += 1
+            continue
+        seen.add(norm)
+        valid.append(norm)
+    if not valid:
+        raise AdapterError(
+            "meta",
+            "कोई सही Indian mobile number नहीं मिला — 10 अंकों वाला number डालें।",
+        )
+
+    data = await _graph(
+        "DELETE",
+        f"{audience_id}/users",
+        json={
+            "payload": {
+                "schema": ["PHONE"],
+                "data": [[_hash(p)] for p in valid],
+            },
+            "session": {
+                "session_id": random.randint(10**9, 2**31 - 1),
+                "batch_seq": 1,
+                "last_batch_flag": True,
+                "estimated_num_total": len(valid),
+            },
+        },
+    )
+    return {
+        "audience_id": data.get("audience_id", audience_id),
+        "removed": data.get("num_received", len(valid)),
+        "invalid": invalid + data.get("num_invalid_entries", 0),
+        "removed_at": int(time.time()),
+        "note": "हटाने की request पहुँच गई — Meta कुछ घंटों में update करेगा।",
+    }

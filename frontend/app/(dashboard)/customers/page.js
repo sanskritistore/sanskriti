@@ -30,6 +30,13 @@ export default function CustomersPage() {
   const [result, setResult] = useState(null); // {received, invalid}
   const [error, setError] = useState("");
 
+  // 🗑️ गलती से जुड़ा number हटाने का खाना (user की माँग 09-10 शाम)
+  const [rmListId, setRmListId] = useState("");
+  const [rmNumbers, setRmNumbers] = useState("");
+  const [rmBusy, setRmBusy] = useState(false);
+  const [rmResult, setRmResult] = useState(null); // {removed, invalid}
+  const [rmError, setRmError] = useState("");
+
   async function refresh() {
     setLoadError("");
     try {
@@ -81,6 +88,35 @@ export default function CustomersPage() {
       setError(e.message || "Error");
     } finally {
       setBusy(false);
+    }
+  }
+
+  // 🗑️ चुनी सूची से numbers हटाओ
+  const rmParsed = rmNumbers
+    .split(/[\n,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  async function handleRemove() {
+    setRmError("");
+    setRmResult(null);
+    if (!rmListId) {
+      setRmError(t("customers.removePickList"));
+      return;
+    }
+    if (rmParsed.length === 0) {
+      setRmError(t("customers.errorNoNumbers"));
+      return;
+    }
+    setRmBusy(true);
+    try {
+      const res = await api.audiences.remove(rmListId, rmParsed);
+      setRmResult(res);
+      setRmNumbers("");
+    } catch (e) {
+      setRmError(e.message || "Error");
+    } finally {
+      setRmBusy(false);
     }
   }
 
@@ -215,6 +251,68 @@ export default function CustomersPage() {
           </div>
         )}
       </div>
+
+      {/* ── 🗑️ गलती से जुड़ा number हटाओ ─────────────── */}
+      {lists !== null && lists.length > 0 && (
+        <div className="card space-y-3 border border-red-200">
+          <h2 className="text-lg font-semibold text-red-700">
+            {t("customers.removeTitle")}
+          </h2>
+          <p className="text-sm text-gray-600">{t("customers.removeHint")}</p>
+
+          <select
+            value={rmListId}
+            onChange={(e) => setRmListId(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-3"
+          >
+            <option value="">{t("customers.removePickList")}</option>
+            {lists.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+
+          <textarea
+            value={rmNumbers}
+            onChange={(e) => setRmNumbers(e.target.value)}
+            placeholder={t("customers.numbersHint")}
+            rows={3}
+            className="w-full rounded-lg border border-gray-300 px-3 py-3 font-mono"
+          />
+          {rmParsed.length > 0 && (
+            <p className="text-sm text-gray-600">
+              {t("customers.parsed", { count: rmParsed.length })}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={handleRemove}
+            disabled={rmBusy || !rmListId || rmParsed.length === 0}
+            className="w-full rounded-lg bg-red-600 py-3 font-semibold text-white disabled:opacity-50"
+          >
+            {rmBusy ? t("customers.removing") : t("customers.removeBtn")}
+          </button>
+
+          {/* गड़बड़ी — हमेशा साफ़ दिखेगी */}
+          {rmError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-red-700">
+              ⚠️ {rmError}
+            </div>
+          )}
+
+          {/* कामयाबी */}
+          {rmResult && (
+            <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-3 text-green-800">
+              <p className="font-semibold">
+                {t("customers.removed", { count: rmResult.removed })}
+              </p>
+              <p className="mt-1 text-sm">{t("customers.removedNote")}</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
