@@ -33,6 +33,9 @@ export default function ProductsPage() {
   const [enhanceText, setEnhanceText] = useState("");
   const [enhancing, setEnhancing] = useState(false);
   const [enhanceProgress, setEnhanceProgress] = useState("");
+  const [fgPhoto, setFgPhoto] = useState(""); // enhance के बाद पारदर्शी product — zoom के लिए
+  const [zoom, setZoom] = useState(1);
+  const [zoomBusy, setZoomBusy] = useState(false);
 
   // ✨ सब user के phone में होता है — server पर बोझ शून्य
   async function handleEnhance() {
@@ -41,8 +44,10 @@ export default function ProductsPage() {
     setEnhanceProgress("");
     try {
       const { enhancePhoto } = await import("../../../lib/photoStudio");
-      const out = await enhancePhoto(photo, enhanceText.trim(), setEnhanceProgress);
-      setPhoto(out);
+      const r = await enhancePhoto(photo, enhanceText.trim(), setEnhanceProgress);
+      setPhoto(r.photo);
+      setFgPhoto(r.fg);
+      setZoom(1);
       setToast(t("products.enhanceDone"));
       setTimeout(() => setToast(""), 2500);
     } catch {
@@ -51,6 +56,21 @@ export default function ProductsPage() {
     } finally {
       setEnhancing(false);
       setEnhanceProgress("");
+    }
+  }
+
+  // 🔍 zoom: enhance के बाद का पारदर्शी product फिर compose — तुरंत, offline
+  async function handleZoom(delta) {
+    if (!fgPhoto || zoomBusy) return;
+    const nz = Math.min(1.2, Math.max(0.6, Math.round((zoom + delta) * 10) / 10));
+    if (nz === zoom) return;
+    setZoomBusy(true);
+    try {
+      const { recomposePhoto } = await import("../../../lib/photoStudio");
+      setPhoto(await recomposePhoto(fgPhoto, enhanceText.trim(), nz));
+      setZoom(nz);
+    } catch { /* पुरानी photo ही रहने दो */ } finally {
+      setZoomBusy(false);
     }
   }
 
@@ -147,7 +167,7 @@ export default function ProductsPage() {
           {/* STEP 1: photo */}
           {step === 1 && (
             <div className="space-y-4">
-              <PhotoPicker value={photo} onChange={setPhoto} hint={t("products.photoHint")} />
+              <PhotoPicker value={photo} onChange={(v) => { setPhoto(v); setFgPhoto(""); setZoom(1); }} hint={t("products.photoHint")} />
               {photo && (
                 <div className="space-y-3 rounded-xl bg-brand-50 p-3">
                   <input
@@ -164,6 +184,34 @@ export default function ProductsPage() {
                   >
                     {enhancing ? "⏳ " + (enhanceProgress || t("products.enhancing")) : t("products.enhance")}
                   </button>
+                  {fgPhoto && (
+                    <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2">
+                      <span className="text-sm font-medium text-gray-700">🔍 {t("products.zoom")}</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          aria-label="छोटा"
+                          className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-lg font-bold text-brand-700 disabled:opacity-40"
+                          onClick={() => handleZoom(-0.1)}
+                          disabled={zoomBusy || zoom <= 0.6}
+                        >
+                          −
+                        </button>
+                        <span className="w-12 text-center text-sm font-semibold text-gray-800">
+                          {Math.round(zoom * 100)}%
+                        </span>
+                        <button
+                          type="button"
+                          aria-label="बड़ा"
+                          className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-lg font-bold text-brand-700 disabled:opacity-40"
+                          onClick={() => handleZoom(0.1)}
+                          disabled={zoomBusy || zoom >= 1.2}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               <button className="btn-primary w-full" onClick={() => setStep(2)} disabled={enhancing}>

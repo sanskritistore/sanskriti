@@ -48,9 +48,9 @@ function alphaBounds(img) {
  * @param {string} dataUri - "data:image/..." photo
  * @param {string} text - नीचे लिखना है (खाली हो तो सिर्फ white bg)
  * @param {(msg:string)=>void} onProgress - progress message दिखाने के लिए
- * @returns {Promise<string>} नई photo का data URI (webp)
+ * @returns {Promise<{photo:string, fg:string}>} photo = नई photo (webp), fg = पारदर्शी product (zoom के लिए)
  */
-export async function enhancePhoto(dataUri, text, onProgress = () => {}) {
+export async function enhancePhoto(dataUri, text, onProgress = () => {}, zoom = 1) {
   onProgress("AI तैयार हो रहा है… (पहली बार थोड़ा time)");
   const { removeBackground } = await loadLib();
 
@@ -70,18 +70,31 @@ export async function enhancePhoto(dataUri, text, onProgress = () => {}) {
 
   onProgress("सफ़ेद background लग रहा है…");
   const fg = await blobToImage(fgBlob);
+  const photo = compose(fg, text, zoom);
+  onProgress("तैयार!");
+  // fg (पारदर्शी product) साथ भेजो — zoom बदलने पर AI फिर नहीं चलाना पड़ता
+  const fc = document.createElement("canvas");
+  fc.width = fg.width; fc.height = fg.height;
+  fc.getContext("2d").drawImage(fg, 0, 0);
+  return { photo, fg: fc.toDataURL("image/png") };
+}
+
+// 🔍 Composition अलग — zoom बदलने पर सिर्फ यही दोबारा चलता है (तुरंत!)
+function compose(fg, text, zoom = 1) {
   const b = alphaBounds(fg);
 
-  // सफ़ेद चौकोर canvas, product के इर्द-गिर्द 10% margin
+  // सफ़ेद चौकोर canvas — product के इर्द-गिर्द margin; zoom से product बड़ा/छोटा
   const side = Math.ceil(Math.max(b.w, b.h) * 1.2);
   const canvas = document.createElement("canvas");
   canvas.width = side; canvas.height = side;
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, side, side);
-  const dx = Math.round((side - b.w) / 2);
-  const dy = Math.round((side - b.h) / 2);
-  ctx.drawImage(fg, b.x, b.y, b.w, b.h, dx, dy, b.w, b.h);
+  const dw = Math.round(b.w * zoom);
+  const dh = Math.round(b.h * zoom);
+  const dx = Math.round((side - dw) / 2);
+  const dy = Math.round((side - dh) / 2);
+  ctx.drawImage(fg, b.x, b.y, b.w, b.h, dx, dy, dw, dh);
 
   // ✍️ नीचे लिखावट की पट्टी (Hindi fonts browser खुद संभालता है!)
   const cleanText = (text || "").trim();
@@ -100,7 +113,6 @@ export async function enhancePhoto(dataUri, text, onProgress = () => {}) {
     ctx.fillText(cleanText, side / 2, y0 + bandH / 2 + 1);
   }
 
-  onProgress("तैयार!");
   // बहुत बड़ी photo को 1200px तक सीमित (DB में हल्की रहे)
   let out = canvas;
   if (side > 1200) {
@@ -114,4 +126,11 @@ export async function enhancePhoto(dataUri, text, onProgress = () => {}) {
   } catch {
     return out.toDataURL("image/jpeg", 0.9);
   }
+}
+
+// 🔍 Zoom बदलो — enhance के बाद, AI दोबारा चलाए बिना (तुरंत, offline)
+export async function recomposePhoto(fgDataUri, text, zoom) {
+  const fgBlob = await (await fetch(fgDataUri)).blob();
+  const fg = await blobToImage(fgBlob);
+  return compose(fg, text, zoom);
 }

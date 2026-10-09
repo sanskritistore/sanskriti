@@ -67,6 +67,7 @@ export const translations = {
     "products.enhanceText": "फोटो पर लिखावट — नाम/दाम (ज़रूरी नहीं)",
     "products.enhanceFail": "फोटो सुंदर नहीं बन पाई — दूसरी फोटो आज़माएँ",
     "products.enhanceDone": "फोटो तैयार! 🎉",
+    "products.zoom": "फोटो का आकार",
 
     // Ads (3-step flow)
     "ads.working": "AI आपका विज्ञापन बना रहा है…",
@@ -243,6 +244,7 @@ export const translations = {
     "products.enhanceText": "Text on photo — name/price (optional)",
     "products.enhanceFail": "Could not beautify — try another photo",
     "products.enhanceDone": "Photo ready! 🎉",
+    "products.zoom": "Photo size",
 
     // Ads (3-step flow)
     "ads.working": "AI is creating your ad…",
