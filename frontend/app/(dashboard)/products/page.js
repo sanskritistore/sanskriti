@@ -7,6 +7,7 @@ import { formatRupees } from "@/lib/utils";
 import LanguageToggle from "@/components/ui/LanguageToggle";
 import StepDots from "@/components/ui/StepDots";
 import ProductCard from "@/components/ui/ProductCard";
+import ShopLinkCard from "@/components/ShopLinkCard";
 import PhotoPicker from "@/components/forms/PhotoPicker";
 
 /**
@@ -171,6 +172,9 @@ export default function ProductsPage() {
         <h1 className="text-2xl font-bold">{t("products.title")}</h1>
         <LanguageToggle />
       </div>
+
+      {/* 🏪 तुम्हारी online दुकान — link share करो / QR छापो */}
+      <ShopLinkCard />
 
       {toast && (
         <p className="rounded-xl bg-green-50 p-3 text-center font-semibold text-hindi-success">

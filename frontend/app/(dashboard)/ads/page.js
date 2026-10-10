@@ -44,7 +44,6 @@ export default function AdsPage() {
   const [step, setStep] = useState(1);
   const [selectedProduct, setSelectedProduct] = useState(null);
   // 🎠 Carousel (10-10 user माँग): मुख्य product के अलावा extra posters (अधिकतम 4)
-  const [extraProductIds, setExtraProductIds] = useState([]);
   // 🎠 A (10-10): चुने product की album photos की गिनती — hint दिखाने के लिए
   const [albumPhotoCount, setAlbumPhotoCount] = useState(0);
   const [budget, setBudget] = useState(null);
@@ -255,8 +254,6 @@ export default function AdsPage() {
       const c = await api.adStudio.generate({
         product_id: selectedProduct.id,
         language: "hi",
-        // 🎠 extra posters चुने हों तो carousel ad बनेगी
-        extra_product_ids: extraProductIds.length ? extraProductIds : null,
       });
       setCreative(c);
     } catch {
@@ -342,7 +339,6 @@ export default function AdsPage() {
   function resetForm() {
     setStep(1);
     setSelectedProduct(null);
-    setExtraProductIds([]);
     setAlbumPhotoCount(0);
     setBudget(null);
     setGeoType("city");
@@ -426,10 +422,6 @@ export default function AdsPage() {
                         key={p.id}
                         onClick={() => {
                           setSelectedProduct(p);
-                          // मुख्य बदली तो extras से हटाओ (एक product दो बार न चले)
-                          setExtraProductIds((prev) =>
-                            prev.filter((id) => id !== p.id)
-                          );
                           // 🎠 album photos गिनो — hint: "सारी photos ad में दिखेंगी"
                           setAlbumPhotoCount(0);
                           api.products
@@ -462,59 +454,13 @@ export default function AdsPage() {
                     </p>
                   )}
 
-                  {/* 🎠 Carousel: मुख्य चुनने के बाद extra posters (ज़रूरी नहीं) */}
-                  {selectedProduct && products.length > 1 && (
-                    <div className="rounded-xl bg-blue-50 p-4">
-                      <p className="font-semibold text-blue-800">
-                        {t("ads.carouselTitle")}
-                      </p>
-                      <p className="mt-1 text-sm text-blue-600">
-                        {t("ads.carouselHint")}
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {products
-                          .filter((p) => p.id !== selectedProduct.id)
-                          .map((p) => {
-                            const on = extraProductIds.includes(p.id);
-                            return (
-                              <button
-                                key={p.id}
-                                onClick={() =>
-                                  setExtraProductIds((prev) =>
-                                    on
-                                      ? prev.filter((id) => id !== p.id)
-                                      : prev.length >= 4
-                                        ? prev
-                                        : [...prev, p.id]
-                                  )
-                                }
-                                className={`rounded-full px-3 py-2 text-sm font-semibold transition-colors ${
-                                  on
-                                    ? "bg-brand-500 text-white"
-                                    : "bg-white text-gray-700 ring-1 ring-gray-300"
-                                }`}
-                              >
-                                {on ? "✓ " : "+ "}
-                                {p.name}
-                              </button>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
-
                   {/* आगे बढ़ें — मुख्य product चुनने पर */}
                   {selectedProduct && (
                     <button
                       onClick={() => setStep(2)}
                       className="btn-primary w-full py-4 text-lg"
                     >
-                      {extraProductIds.length
-                        ? t("ads.nextCarousel").replace(
-                            "{n}",
-                            String(extraProductIds.length + 1)
-                          )
-                        : t("ads.next")}
+                      {t("ads.next")}
                     </button>
                   )}
                 </>
@@ -882,15 +828,6 @@ export default function AdsPage() {
                     product={selectedProduct}
                     creative={creative}
                   />
-                  {/* 🎠 Carousel सूचना — extra posters चुने हों तो */}
-                  {extraProductIds.length > 0 && (
-                    <p className="rounded-xl bg-blue-50 p-3 text-center text-sm font-semibold text-blue-700">
-                      {t("ads.carouselNote").replace(
-                        "{n}",
-                        String(extraProductIds.length + 1)
-                      )}
-                    </p>
-                  )}
                   {/* चुने हुए दर्शक — launch से पहले verify */}
                   <p className="text-center text-sm font-medium text-gray-600">
                     {t("ads.showsIn")}: {targetingSummary()}
