@@ -144,6 +144,7 @@ async def create_product(
     """नया उत्पाद जोड़ें। tenant_id स्वतः सेट होता है।"""
     data = payload.model_dump()
     photo_url = data.pop("photo", None)
+    extra_photos = data.pop("extra_photos", None) or []  # 💥 Product() में न जाए!
     if photo_url:
         photo_url = compress_data_uri(photo_url)
 
@@ -166,7 +167,7 @@ async def create_product(
         await db.flush()
 
     # 📸 extra photos (album की छोटी photos) — main के बाद, क्रम में
-    for extra in (payload.extra_photos or [])[:6]:
+    for extra in extra_photos[:6]:
         if not extra:
             continue
         db.add(ProductPhoto(
@@ -176,7 +177,7 @@ async def create_product(
             photo_type="original",
             is_primary=False,
         ))
-    if payload.extra_photos:
+    if extra_photos:
         await db.flush()
 
     await db.refresh(product)
