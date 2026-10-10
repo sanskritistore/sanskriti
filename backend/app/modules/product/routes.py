@@ -74,6 +74,7 @@ class ProductDetailResponse(ProductResponse):
     """उत्पाद की पूरी जानकारी + सारी photos (main पहले)।"""
 
     photos: list[ProductPhotoResponse] = []
+    show_in_shop: bool = True  # 🏪 दुकान page पर दिखे या नहीं
 
 
 def _to_response(product: Product) -> ProductResponse:
@@ -102,6 +103,7 @@ def _to_detail_response(product: Product) -> ProductDetailResponse:
         ProductPhotoResponse(id=p.id, url=p.url, is_primary=p.is_primary)
         for p in photos
     ]
+    base["show_in_shop"] = product.show_in_shop
     return ProductDetailResponse(**base)
 
 
@@ -281,6 +283,22 @@ async def add_product_photo(
         photo_type="original",
         is_primary=not product.photos,  # पहली photo तो main
     ))
+    await db.flush()
+    await db.refresh(product)
+    return _to_detail_response(product)
+
+
+@router.put("/{product_id}/shop-toggle", response_model=ProductDetailResponse)
+async def toggle_shop_visibility(
+    product_id: int,
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """🏪 public दुकान page पर दिखाओ/छुपाओ — मालिक चुने कौन सा item
+    दुकान में दिखे (10-10 user सवाल: 'सारे items या main-main?')।
+    App की अपनी list पर कोई असर नहीं — सिर्फ public page।"""
+    product = await _get_product(db, tenant_id, product_id)
+    product.show_in_shop = not product.show_in_shop
     await db.flush()
     await db.refresh(product)
     return _to_detail_response(product)

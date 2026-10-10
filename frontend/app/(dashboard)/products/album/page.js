@@ -135,6 +135,22 @@ function AlbumInner() {
     }
   }
 
+  /** 🏪 दुकान page पर दिखाओ/छुपाओ (10-10 user सवाल) */
+  async function toggleShop() {
+    setBusy(true);
+    try {
+      const p = await api.products.toggleShop(productId);
+      setProduct(p);
+      showToast(
+        p.show_in_shop ? t("products.shopShown") : t("products.shopHid")
+      );
+    } catch {
+      showToast(t("products.photoFail"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (error) {
     return (
       <div className="card mt-6 text-center text-hindi-danger">{error}</div>
@@ -262,6 +278,21 @@ function AlbumInner() {
               🗑 {t("products.deletePhoto")}
             </button>
           )}
+
+          {/* 🏪 दुकान page में दिखे या छुपे — मालिक चुने */}
+          <button
+            onClick={toggleShop}
+            disabled={busy}
+            className={`w-full rounded-xl border-2 py-3 font-semibold ${
+              product.show_in_shop
+                ? "border-green-200 bg-green-50 text-green-700"
+                : "border-gray-200 bg-gray-50 text-gray-500"
+            }`}
+          >
+            {product.show_in_shop
+              ? t("products.shopVisible")
+              : t("products.shopHidden")}
+          </button>
         </div>
       )}
 

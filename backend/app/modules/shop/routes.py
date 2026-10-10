@@ -33,7 +33,11 @@ async def get_public_shop(tenant_id: int, db: AsyncSession = Depends(get_db)):
     products = (
         await db.execute(
             select(Product)
-            .where(Product.tenant_id == tenant_id)
+            .where(
+                Product.tenant_id == tenant_id,
+                Product.is_active == True,  # noqa: E712 — हटाए हुए कभी न दिखें!
+                Product.show_in_shop == True,  # noqa: E712 — मालिक ने छुपाए हों
+            )
             .order_by(Product.id.desc())
         )
     ).scalars().all()

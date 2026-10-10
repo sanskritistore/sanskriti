@@ -185,6 +185,9 @@ export function APIProvider({ children }) {
           call(`/products/${id}/photos/${photoId}/primary`, { method: "PUT" }),
         deletePhoto: (id, photoId) =>
           call(`/products/${id}/photos/${photoId}`, { method: "DELETE" }),
+        // 🏪 दुकान page पर दिखाओ/छुपाओ (10-10 user सवाल)
+        toggleShop: (id) =>
+          call(`/products/${id}/shop-toggle`, { method: "PUT" }),
       },
 
       // Ads

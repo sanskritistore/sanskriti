@@ -30,6 +30,8 @@ class Product(Base, TimestampMixin, TenantMixin):
     # विशेषताएँ - AI को संकेत देने के लिए
     tags: Mapped[str] = mapped_column(Text, nullable=True)  # comma-separated
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # 🏪 public दुकान page पर दिखे या नहीं — मालिक चुने (10-10 user सवाल)
+    show_in_shop: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # संबंध: एक उत्पाद की कई फ़ोटो
     photos = relationship(

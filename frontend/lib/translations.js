@@ -109,6 +109,10 @@ export const translations = {
     "products.mainDone": "अब यही photo ads में दिखेगी ⭐",
     "products.addPhoto": "फोटो",
     "products.morePhotos": "और photos जोड़ें (ज़रूरी नहीं) — ये छोटी दिखेंगी",
+    "products.shopVisible": "🏪 दुकान में दिख रहा है — छुपाने के लिए दबाएँ",
+    "products.shopHidden": "🙈 दुकान में छुपा है — दिखाने के लिए दबाएँ",
+    "products.shopShown": "अब दुकान में दिखेगा 🏪",
+    "products.shopHid": "दुकान से छुपा दिया 🙈",
 
     "products.addFirstPhoto": "पहली photo जोड़ें",
     "products.photoAdded": "Photo जुड़ गई! 📸",
@@ -355,6 +359,10 @@ export const translations = {
     "products.mainDone": "This photo will now show in ads ⭐",
     "products.addPhoto": "photo",
     "products.morePhotos": "Add more photos (optional) — these show small",
+    "products.shopVisible": "🏪 Visible in shop — tap to hide",
+    "products.shopHidden": "🙈 Hidden from shop — tap to show",
+    "products.shopShown": "Now visible in shop 🏪",
+    "products.shopHid": "Hidden from shop 🙈",
 
     "products.addFirstPhoto": "Add first photo",
     "products.photoAdded": "Photo added! 📸",
