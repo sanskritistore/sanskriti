@@ -206,60 +206,60 @@ export default function ProductsPage() {
             <div className="space-y-4">
               <PhotoPicker value={photo} onChange={(v) => { setPhoto(v); setFgPhoto(""); setZoom(1); }} hint={t("products.photoHint")} />
 
-              {/* 📸 छोटी photos (album) — main के नीचे, sample जैसा */}
-              {photo && (
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold text-gray-600">
-                    {t("products.morePhotos")}
-                  </p>
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {extraPhotos.map((ep, i) => (
-                      <div
-                        key={i}
-                        className="relative h-20 w-20 flex-none overflow-hidden rounded-xl ring-1 ring-gray-200"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={ep}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExtraPhotos((prev) =>
-                              prev.filter((_, j) => j !== i)
-                            )
-                          }
-                          className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs font-bold text-white"
-                          aria-label="हटाएँ"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                    {extraPhotos.length < 6 && (
+              {/* 📸 छोटी photos (album) — शुरू से ही दिखें (user sample जैसा:
+                  ऊपर बड़ा box, नीचे छोटे boxes) — 12:27 feedback: "एक ही box
+                  आ रहा" क्योंकि पहले main photo के बाद ही दिखते थे */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-gray-600">
+                  {t("products.morePhotos")}
+                </p>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {extraPhotos.map((ep, i) => (
+                    <div
+                      key={i}
+                      className="relative h-20 w-20 flex-none overflow-hidden rounded-xl ring-1 ring-gray-200"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={ep}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
                       <button
                         type="button"
-                        onClick={() => extraInputRef.current?.click()}
-                        className="flex h-20 w-20 flex-none flex-col items-center justify-center rounded-xl border-2 border-dashed border-brand-300 bg-brand-50 text-brand-500"
+                        onClick={() =>
+                          setExtraPhotos((prev) =>
+                            prev.filter((_, j) => j !== i)
+                          )
+                        }
+                        className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs font-bold text-white"
+                        aria-label="हटाएँ"
                       >
-                        <span className="text-2xl">＋</span>
-                        <span className="text-xs font-semibold">
-                          {t("products.addPhoto")}
-                        </span>
+                        ×
                       </button>
-                    )}
-                  </div>
-                  <input
-                    ref={extraInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleExtraPhotoFile}
-                  />
+                    </div>
+                  ))}
+                  {extraPhotos.length < 6 && (
+                    <button
+                      type="button"
+                      onClick={() => extraInputRef.current?.click()}
+                      className="flex h-20 w-20 flex-none flex-col items-center justify-center rounded-xl border-2 border-dashed border-brand-300 bg-brand-50 text-brand-500"
+                    >
+                      <span className="text-2xl">＋</span>
+                      <span className="text-xs font-semibold">
+                        {t("products.addPhoto")}
+                      </span>
+                    </button>
+                  )}
                 </div>
-              )}
+                <input
+                  ref={extraInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleExtraPhotoFile}
+                />
+              </div>
 
               {photo && (
                 <div className="space-y-3 rounded-xl bg-brand-50 p-3">
