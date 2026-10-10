@@ -321,6 +321,18 @@ export default function AdsPage() {
     }
   }
 
+  async function handleResume(id) {
+    setBusy(true);
+    try {
+      await api.campaigns.resume(id);
+      await loadAll();
+    } catch {
+      /* ignore */
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function resetForm() {
     setStep(1);
     setSelectedProduct(null);
@@ -863,9 +875,14 @@ export default function AdsPage() {
                       </button>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <span className="rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-500">
-                          ⏸
-                        </span>
+                        {/* ▶️ रुकी ad फिर चालू करो (10-10 launch day toggle) */}
+                        <button
+                          className="rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-700"
+                          onClick={() => handleResume(c.id)}
+                          disabled={busy}
+                        >
+                          ▶️ {t("ads.resume")}
+                        </button>
                         {/* रुकी/draft ad हटाएँ — record सुरक्षित रहता है */}
                         <button
                           className="rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-600"

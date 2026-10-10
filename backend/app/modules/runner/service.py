@@ -227,6 +227,26 @@ async def pause_campaign(
     return campaign
 
 
+async def resume_campaign(
+    db: AsyncSession, tenant_id: int, campaign_id: int
+) -> Campaign:
+    """रुकी कैंपेन फिर चालू करें - प्रत्येक प्लेटफॉर्म पर ACTIVE भेजें।
+
+    (10-10 launch day: user ने पूछा "toggle kaha he" — resume button
+    ही नहीं था! pause के बाद वापस चालू करने का रास्ता ज़रूरी।)
+    """
+    campaign = await get_campaign(db, tenant_id, campaign_id)
+
+    for pc in campaign.platform_campaigns:
+        adapter = get_adapter(pc.platform)
+        await adapter.resume_campaign(pc.platform_campaign_id)
+        pc.platform_status = "ACTIVE"
+
+    campaign.status = "active"
+    await db.flush()
+    return campaign
+
+
 async def delete_campaign(db: AsyncSession, tenant_id: int, campaign_id: int) -> None:
     """
     कैंपेन हटाएँ — SOFT-DELETE (08-10 शाम user माँग):

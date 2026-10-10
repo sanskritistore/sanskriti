@@ -215,6 +215,7 @@ export function APIProvider({ children }) {
         create: (data) => call("/campaigns", { method: "POST", body: data }),
         launch: (id) => call(`/campaigns/${id}/launch`, { method: "POST" }),
         pause: (id) => call(`/campaigns/${id}/pause`, { method: "POST" }),
+        resume: (id) => call(`/campaigns/${id}/resume`, { method: "POST" }),
         delete: (id) => call(`/campaigns/${id}`, { method: "DELETE" }),
         records: () => call("/campaigns/records"),
       },

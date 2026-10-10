@@ -140,6 +140,17 @@ async def pause_campaign(
     return campaign
 
 
+@router.post("/{campaign_id}/resume", response_model=CampaignResponse)
+async def resume_campaign(
+    campaign_id: int,
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """रुकी कैंपेन फिर चालू करें (प्लेटफॉर्म पर भी ACTIVE)।"""
+    campaign = await service.resume_campaign(db, tenant_id, campaign_id)
+    return campaign
+
+
 @router.delete("/{campaign_id}")
 async def delete_campaign(
     campaign_id: int,
