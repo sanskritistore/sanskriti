@@ -108,6 +108,8 @@ export const translations = {
     "products.makeMain": "इसे main बनाओ — ads में यही दिखेगी",
     "products.mainDone": "अब यही photo ads में दिखेगी ⭐",
     "products.addPhoto": "फोटो",
+    "products.morePhotos": "और photos जोड़ें (ज़रूरी नहीं) — ये छोटी दिखेंगी",
+
     "products.addFirstPhoto": "पहली photo जोड़ें",
     "products.photoAdded": "Photo जुड़ गई! 📸",
     "products.photoDeleted": "Photo हट गई",
@@ -350,6 +352,8 @@ export const translations = {
     "products.makeMain": "Make this main — it will show in ads",
     "products.mainDone": "This photo will now show in ads ⭐",
     "products.addPhoto": "photo",
+    "products.morePhotos": "Add more photos (optional) — these show small",
+
     "products.addFirstPhoto": "Add first photo",
     "products.photoAdded": "Photo added! 📸",
     "products.photoDeleted": "Photo removed",

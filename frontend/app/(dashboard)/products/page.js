@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/lib/LanguageContext";
 import { useAPI } from "@/lib/api";
 import { formatRupees } from "@/lib/utils";
@@ -26,6 +26,8 @@ export default function ProductsPage() {
   const [adding, setAdding] = useState(false);
   const [step, setStep] = useState(1);
   const [photo, setPhoto] = useState(null);
+  // 📸 Album (10-10 user माँग): main photo के अलावा छोटी photos (अधिकतम 6)
+  const [extraPhotos, setExtraPhotos] = useState([]);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -36,6 +38,7 @@ export default function ProductsPage() {
   const [fgPhoto, setFgPhoto] = useState(""); // enhance के बाद पारदर्शी product — zoom के लिए
   const [zoom, setZoom] = useState(1);
   const [zoomBusy, setZoomBusy] = useState(false);
+  const extraInputRef = useRef(null); // 📸 छोटी photos का file input
 
   // ✨ सब user के phone में होता है — server पर बोझ शून्य
   async function handleEnhance() {
@@ -97,7 +100,8 @@ export default function ProductsPage() {
       await api.products.create({
         name,
         price: Number(price),
-        photo, // placeholder: base64/URL — backend contract TBD
+        photo, // main photo — ads में यही दिखेगी
+        extra_photos: extraPhotos.length ? extraPhotos : null, // 📸 album
       });
       setToast(t("products.added"));
       setAdding(false);
@@ -114,9 +118,42 @@ export default function ProductsPage() {
   function resetForm() {
     setStep(1);
     setPhoto(null);
+    setExtraPhotos([]);
     setName("");
     setPrice("");
     setEnhanceText("");
+  }
+
+  /** 📸 extra photo चुनो — PhotoPicker जैसी compressing (भारी photo हल्की) */
+  function handleExtraPhotoFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (Math.max(width, height) > 1600) {
+          const scale = 1600 / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        setExtraPhotos((prev) =>
+          prev.length >= 6 ? prev : [...prev, canvas.toDataURL("image/jpeg", 0.85)]
+        );
+      };
+      img.onerror = () =>
+        setExtraPhotos((prev) =>
+          prev.length >= 6 ? prev : [...prev, reader.result]
+        );
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = ""; // वही file दोबारा चुन सके
   }
 
   async function handleDelete(id) {
@@ -168,6 +205,62 @@ export default function ProductsPage() {
           {step === 1 && (
             <div className="space-y-4">
               <PhotoPicker value={photo} onChange={(v) => { setPhoto(v); setFgPhoto(""); setZoom(1); }} hint={t("products.photoHint")} />
+
+              {/* 📸 छोटी photos (album) — main के नीचे, sample जैसा */}
+              {photo && (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-gray-600">
+                    {t("products.morePhotos")}
+                  </p>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {extraPhotos.map((ep, i) => (
+                      <div
+                        key={i}
+                        className="relative h-20 w-20 flex-none overflow-hidden rounded-xl ring-1 ring-gray-200"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={ep}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExtraPhotos((prev) =>
+                              prev.filter((_, j) => j !== i)
+                            )
+                          }
+                          className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs font-bold text-white"
+                          aria-label="हटाएँ"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    {extraPhotos.length < 6 && (
+                      <button
+                        type="button"
+                        onClick={() => extraInputRef.current?.click()}
+                        className="flex h-20 w-20 flex-none flex-col items-center justify-center rounded-xl border-2 border-dashed border-brand-300 bg-brand-50 text-brand-500"
+                      >
+                        <span className="text-2xl">＋</span>
+                        <span className="text-xs font-semibold">
+                          {t("products.addPhoto")}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    ref={extraInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleExtraPhotoFile}
+                  />
+                </div>
+              )}
+
               {photo && (
                 <div className="space-y-3 rounded-xl bg-brand-50 p-3">
                   <input

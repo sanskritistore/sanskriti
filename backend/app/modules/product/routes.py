@@ -29,6 +29,9 @@ class ProductCreate(BaseModel):
     # फ़ोटो (data-URL या URL) - MVP में सीधे रिकॉर्ड में,
     # असली S3 स्टोरेज बाद में जुड़ेगा
     photo: str | None = None
+    # 📸 Album (10-10 user माँग): main photo के अलावा छोटी photos भी
+    # एक साथ — add flow से (अधिकतम 6 extra = कुल 7)
+    extra_photos: list[str] | None = None
 
 
 class ProductUpdate(BaseModel):
@@ -160,6 +163,20 @@ async def create_product(
             photo_type="original",
             is_primary=True,
         ))
+        await db.flush()
+
+    # 📸 extra photos (album की छोटी photos) — main के बाद, क्रम में
+    for extra in (payload.extra_photos or [])[:6]:
+        if not extra:
+            continue
+        db.add(ProductPhoto(
+            tenant_id=tenant_id,  # ARCHITECTURE RULE
+            product_id=product.id,
+            url=compress_data_uri(extra),
+            photo_type="original",
+            is_primary=False,
+        ))
+    if payload.extra_photos:
         await db.flush()
 
     await db.refresh(product)
