@@ -85,3 +85,50 @@ async def dev_credit(
     return {"ok": True, "wallet_balance": tenant.wallet_balance,
             "\u0938\u0902\u0926\u0947\u0936": f"DEV: \u20b9{payload.amount} \u091c\u092e\u093e \u0939\u0941\u090f"}
 
+
+class AdminCreditRequest(BaseModel):
+    """एडमिन वॉलेट क्रेडिट अनुरोध — tenant_id + राशि + नोट।"""
+
+    tenant_id: int
+    amount: float  # ₹ में
+    notes: str = "एडमिन क्रेडिट (ऑफ़लाइन भुगतान)"
+
+
+@router.post("/admin-credit")
+async def admin_credit(
+    payload: AdminCreditRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    एडमिन wallet credit — X-Admin-Key (JWT_SECRET_KEY) से सुरक्षित।
+
+    असली काम: ग्राहक ने नकद/UPI से पैसे दिए → उसका wallet भरो ताकि
+    ad launch हो सके। (10-10: launch 402 पर अटका था — wallet खाली।)
+    """
+    from fastapi import HTTPException
+
+    from app.core.config import settings
+    from app.models.payment import WalletTransaction
+    from app.models.tenant import Tenant
+
+    if request.headers.get("X-Admin-Key") != settings.JWT_SECRET_KEY:
+        raise HTTPException(status_code=403, detail="गलत एडमिन कुंजी")
+
+    tenant = await db.get(Tenant, payload.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant नहीं मिला")
+
+    tenant.wallet_balance += payload.amount
+    db.add(WalletTransaction(
+        tenant_id=payload.tenant_id,
+        transaction_type="recharge",
+        amount=payload.amount,
+        balance_after=tenant.wallet_balance,
+        status="success",
+        notes=payload.notes,
+    ))
+    await db.flush()
+    return {"ok": True, "wallet_balance": tenant.wallet_balance,
+            "संदेश": f"₹{payload.amount} जमा हुए (admin)"}
+
