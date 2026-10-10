@@ -23,6 +23,7 @@ from app.modules.targeting.routes import router as targeting_router
 from app.modules.billing.routes import router as billing_router
 from app.modules.whatsapp.routes import router as whatsapp_router
 from app.modules.audiences.routes import router as audiences_router
+from app.modules.shop.routes import router as shop_router
 
 api_router = APIRouter()
 
@@ -43,3 +44,5 @@ api_router.include_router(targeting_router, prefix="/targeting", tags=["targetin
 api_router.include_router(billing_router, prefix="/billing", tags=["billing"])
 api_router.include_router(whatsapp_router, prefix="/whatsapp", tags=["whatsapp"])
 api_router.include_router(audiences_router, prefix="/audiences", tags=["audiences"])
+# 🏪 Public मिनी-दुकान (बिना login — customer के लिए, 10-10 user option B)
+api_router.include_router(shop_router, prefix="/shop", tags=["shop"])
