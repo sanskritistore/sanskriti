@@ -91,7 +91,7 @@ function ShopInner() {
             </h1>
             <p className="mt-0.5 text-sm text-blue-200">
               {shop.google_rating
-                ? `⭐ ${shop.google_rating} · ${shop.google_reviews_count || ""} Google reviews`
+                ? `⭐ ${shop.google_rating.toFixed(1)} · ${shop.google_reviews_count || ""} Google reviews`
                 : shop.city || ""}
             </p>
           </div>
