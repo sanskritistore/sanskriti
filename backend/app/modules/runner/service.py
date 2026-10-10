@@ -271,6 +271,14 @@ async def pause_campaign(
     """कैंपेन रोकें - प्रत्येक प्लेटफॉर्म पर PAUSE भेजें।"""
     campaign = await get_campaign(db, tenant_id, campaign_id)
 
+    # 10-10 पैसे-वाला bug: platform row न हो तो loop चुपचाप skip हो जाता था —
+    # app "paused" दिखाता, पर Meta पर ad चलती रहती और पैसा कटता रहता!
+    # Silent failure मना है — साफ़ error दिखाओ।
+    if not campaign.platform_campaigns:
+        from app.core.exceptions import CampaignNotLinkedError
+
+        raise CampaignNotLinkedError(campaign_id)
+
     for pc in campaign.platform_campaigns:
         adapter = get_adapter(pc.platform)
         await adapter.pause_campaign(pc.platform_campaign_id)
@@ -290,6 +298,12 @@ async def resume_campaign(
     ही नहीं था! pause के बाद वापस चालू करने का रास्ता ज़रूरी।)
     """
     campaign = await get_campaign(db, tenant_id, campaign_id)
+
+    # pause जैसा ही guard — बिना platform link के चुपचाप DB न बदले
+    if not campaign.platform_campaigns:
+        from app.core.exceptions import CampaignNotLinkedError
+
+        raise CampaignNotLinkedError(campaign_id)
 
     for pc in campaign.platform_campaigns:
         adapter = get_adapter(pc.platform)

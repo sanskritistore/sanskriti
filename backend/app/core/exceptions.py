@@ -49,6 +49,22 @@ class CampaignNotDraftError(SanskritiException):
         )
 
 
+class CampaignNotLinkedError(SanskritiException):
+    """कैंपेन का Meta से link नहीं (पुरानी legacy कैंपेन) — app से रोक/चालू नहीं हो सकती।
+
+    10-10 bug: पुरानी कैंपेन में PlatformCampaign row नहीं था, pause ने
+    चुपचाप सिर्फ़ DB बदला — Meta पर ad चलती रही और पैसा कटता रहा!
+    Silent failure पर पैसा खर्च होता है — इसलिए साफ़ error दिखाओ।
+    """
+
+    def __init__(self, campaign_id=None):
+        super().__init__(
+            status.HTTP_409_CONFLICT,
+            f"यह पुरानी ad है — Meta से link नहीं मिला (id: {campaign_id})। "
+            "app से रोक/चालू नहीं होगी। कृपया support को बताएँ — Meta पर सीधे रोकी जाएगी।",
+        )
+
+
 class InsufficientBudgetError(SanskritiException):
     """वॉलेट में पर्याप्त बजट नहीं है।"""
 
