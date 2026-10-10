@@ -39,6 +39,19 @@ async def campaign_report(
     return await service.build_campaign_report(db, tenant_id, campaign_id)
 
 
+@router.get("/score-card")
+async def score_card(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    📊 असली Score Card — आज + 7 दिन: कितनों ने देखी, clicks, WhatsApp, खर्च।
+    (10-10 user माँग: "सारा score card अपने software पर आए" — Meta के असली
+    numbers, DB के ₹0 वाले अंदाज़े नहीं।)
+    """
+    return await service.build_score_card(db, tenant_id)
+
+
 @router.get("/who-saw")
 async def who_saw(
     tenant_id: int = Depends(get_current_tenant_id),

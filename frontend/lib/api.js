@@ -234,6 +234,8 @@ export function APIProvider({ children }) {
       reports: {
         summary: () => call("/reports/summary"),
         whoSaw: () => call("/reports/who-saw"),
+        // 📊 असली score card — Meta से सीधे आज + 7 दिन के numbers (10-10)
+        scoreCard: () => call("/reports/score-card"),
       },
 
       // Audiences — ग्राहक phone lists → Meta Custom Audience (09-10 user idea)

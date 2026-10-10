@@ -160,3 +160,95 @@ async def build_who_saw(db: AsyncSession, tenant_id: int) -> dict:
         "platforms": ranked(platforms, ("platform",)),
         "days": 7,
     }
+
+
+async def build_score_card(db: AsyncSession, tenant_id: int) -> dict:
+    """
+    📊 असली Score Card — Meta से सीधे आज + पिछले 7 दिन की गिनती।
+
+    (10-10 user माँग: "software पर score card आए — किसने देखी, कहाँ तक गई,
+    कितना खर्च, कितने ग्राहक आए। DB के ₹0 नहीं — Meta के असली numbers!")
+
+    ईमानदारी: नाम/फ़ोन क़ानूनन नहीं मिलते (privacy) — पर reach, बार,
+    clicks, WhatsApp messages और खर्च सब असली, सीधे Meta से।
+    """
+    import httpx
+    from sqlalchemy import select
+    from app.core.config import settings
+
+    result = await db.execute(
+        select(Campaign).where(Campaign.tenant_id == tenant_id)
+    )
+    campaigns = result.scalars().all()
+
+    # Meta id → हमारी campaign (नाम + status के लिए)
+    meta_map: dict = {}
+    for c in campaigns:
+        for pc in c.platform_campaigns:
+            if pc.platform == "meta":
+                meta_map[pc.platform_campaign_id] = c
+
+    empty = {"reach": 0, "impressions": 0, "clicks": 0, "spend": 0.0, "messages": 0}
+    if not meta_map or not settings.META_ACCESS_TOKEN:
+        return {"today": dict(empty), "week": dict(empty), "campaigns": []}
+
+    base = f"{settings.META_GRAPH_URL}/{settings.META_API_VERSION}"
+
+    # WhatsApp/message जुड़े action types — इन्हें "ग्राहक enquiry" गिनें
+    MSG_TYPES = ("contact", "messaging", "whatsapp")
+
+    def read_row(row: dict) -> dict:
+        actions = row.get("actions") or []
+        messages = sum(
+            int(a.get("value", 0))
+            for a in actions
+            if any(k in str(a.get("action_type", "")).lower() for k in MSG_TYPES)
+        )
+        return {
+            "reach": int(row.get("reach", 0) or 0),
+            "impressions": int(row.get("impressions", 0) or 0),
+            "clicks": int(row.get("clicks", 0) or 0),
+            "spend": float(row.get("spend", 0) or 0),
+            "messages": messages,
+        }
+
+    async def fetch(campaign_id: str, preset: str) -> dict:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.get(
+                f"{base}/{campaign_id}/insights",
+                params={
+                    "fields": "impressions,reach,clicks,spend,actions",
+                    "date_preset": preset,
+                    "access_token": settings.META_ACCESS_TOKEN,
+                },
+            )
+            if resp.status_code >= 400:
+                return dict(empty)
+            data = resp.json().get("data", [])
+            return read_row(data[0]) if data else dict(empty)
+
+    def add(a: dict, b: dict) -> dict:
+        return {k: round(a[k] + b[k], 2) for k in a}
+
+    today_total, week_total = dict(empty), dict(empty)
+    per_campaign = []
+    for cid, c in meta_map.items():
+        t = await fetch(cid, "today")
+        w = await fetch(cid, "last_7d")
+        today_total = add(today_total, t)
+        week_total = add(week_total, w)
+        # सिर्फ़ वही campaigns दिखाएँ जो आज/इस हफ्ते चलीं (0-0 की पुरानी नहीं)
+        if t["impressions"] or w["impressions"] or c.status == "active":
+            per_campaign.append(
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "status": c.status,
+                    "today": t,
+                    "week": w,
+                }
+            )
+
+    # active पहले, फिर नाम से
+    per_campaign.sort(key=lambda x: (x["status"] != "active", x["name"]))
+    return {"today": today_total, "week": week_total, "campaigns": per_campaign}

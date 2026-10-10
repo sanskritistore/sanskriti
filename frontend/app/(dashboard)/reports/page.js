@@ -6,6 +6,7 @@ import { useAPI } from "@/lib/api";
 import { formatRupees } from "@/lib/utils";
 import LanguageToggle from "@/components/ui/LanguageToggle";
 import WhoSawCard from "@/components/reports/WhoSawCard";
+import ScoreCard from "@/components/reports/ScoreCard";
 
 /**
  * Reports — the whole page answers ONE question in money language:
@@ -28,8 +29,6 @@ export default function ReportsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const spent = summary?.total_spent ?? 0;
-  const customers = summary?.total_customers ?? 0;
   const campaigns = summary?.campaigns ?? [];
 
   return (
@@ -48,45 +47,12 @@ export default function ReportsPage() {
         </div>
       ) : (
         <>
-          {/* The headline: ₹X spent → Y customers */}
-          <div className="card bg-gradient-to-b from-brand-50 to-white py-8 text-center">
-            <p className="text-3xl font-bold text-gray-900">
-              {t("reports.headline", {
-                spent: formatRupees(spent),
-                customers,
-              })}
-            </p>
-            <p className="mt-2 text-gray-500">{t("reports.headlineHint")}</p>
-          </div>
+          {/* 📊 असली Score Card — Meta से सीधे (10-10: पुराना DB hero ₹0
+              दिखाता था, असली खर्च Meta पर होता है — गलत numbers मना है) */}
+          <ScoreCard />
 
           {/* 👀 किसने ad देखी — उम्र/इलाका/FB-Instagram बंटवारा (08-10) */}
           <WhoSawCard />
-
-          {/* Two simple numbers side by side */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="card text-center">
-              <p className="text-sm font-semibold uppercase text-gray-400">
-                {t("reports.spent")}
-              </p>
-              <p className="mt-1 text-2xl font-bold text-hindi-danger">
-                {formatRupees(spent)}
-              </p>
-            </div>
-            <div className="card text-center">
-              <p className="text-sm font-semibold uppercase text-gray-400">
-                {t("reports.customers")}
-              </p>
-              <p className="mt-1 text-2xl font-bold text-hindi-success">
-                {customers}
-              </p>
-            </div>
-          </div>
-
-          {customers === 0 && (
-            <p className="text-center text-xs text-gray-400">
-              {t("reports.customersSoon")}
-            </p>
-          )}
 
           {/* Per-campaign हिसाब */}
           <div className="space-y-3">
