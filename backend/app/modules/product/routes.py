@@ -5,7 +5,7 @@
 फ्रंटएंड कॉन्ट्रैक्ट: GET/POST/PUT/DELETE /products (+ photo फ़ील्ड)
 """
 
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,11 +56,30 @@ class ProductResponse(BaseModel):
         from_attributes = True
 
 
+class ProductPhotoResponse(BaseModel):
+    """एक फ़ोटो का उत्तर (photo album के लिए, 10-10 user माँग)।"""
+
+    id: int
+    url: str
+    is_primary: bool
+
+    class Config:
+        from_attributes = True
+
+
+class ProductDetailResponse(ProductResponse):
+    """उत्पाद की पूरी जानकारी + सारी photos (main पहले)।"""
+
+    photos: list[ProductPhotoResponse] = []
+
+
 def _to_response(product: Product) -> ProductResponse:
     """Product मॉडल को उत्तर में बदलें (पहली फ़ोटो का URL साथ)।"""
     photo_url = None
     if product.photos:
-        photo_url = product.photos[0].url
+        # main (is_primary) photo दिखाएँ, नहीं तो पहली
+        primary = next((p for p in product.photos if p.is_primary), None)
+        photo_url = (primary or product.photos[0]).url
     return ProductResponse(
         id=product.id,
         name=product.name,
@@ -70,6 +89,17 @@ def _to_response(product: Product) -> ProductResponse:
         photo=photo_url,
         is_active=product.is_active,
     )
+
+
+def _to_detail_response(product: Product) -> ProductDetailResponse:
+    """उत्पाद + photos (main photo सबसे पहले)।"""
+    base = _to_response(product).model_dump()
+    photos = sorted(product.photos or [], key=lambda p: (not p.is_primary, p.id))
+    base["photos"] = [
+        ProductPhotoResponse(id=p.id, url=p.url, is_primary=p.is_primary)
+        for p in photos
+    ]
+    return ProductDetailResponse(**base)
 
 
 async def _get_product(
@@ -136,15 +166,15 @@ async def create_product(
     return _to_response(product)
 
 
-@router.get("/{product_id}", response_model=ProductResponse)
+@router.get("/{product_id}", response_model=ProductDetailResponse)
 async def get_product(
     product_id: int,
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
-    """एक उत्पाद देखें (tenant_id से फ़िल्टर)।"""
+    """एक उत्पाद देखें — सारी photos समेत (photo album)।"""
     product = await _get_product(db, tenant_id, product_id)
-    return _to_response(product)
+    return _to_detail_response(product)
 
 
 @router.put("/{product_id}", response_model=ProductResponse)
@@ -165,9 +195,10 @@ async def update_product(
         setattr(product, field, value)
 
     if photo_url is not None:
-        # पुरानी प्राथमिक फ़ोटो हटाकर नई रखें (MVP सरलता)
+        # 📸 Album (10-10 user माँग): नई photo MAIN बनाएँ, पुरानी सब
+        # album में बनी रहें (उनका is_primary हटाएँ) — पहले सब हटती थीं!
         for old_photo in product.photos:
-            await db.delete(old_photo)
+            old_photo.is_primary = False
         db.add(ProductPhoto(
             tenant_id=tenant_id,  # ARCHITECTURE RULE
             product_id=product.id,
@@ -193,26 +224,87 @@ async def delete_product(
     await db.flush()
 
 
-@router.post("/{product_id}/photos")
-async def upload_product_photo(
+# 📸 Photo Album (10-10 user माँग): एक product की अधिकतम photos
+MAX_PRODUCT_PHOTOS = 7
+
+
+class PhotoAddRequest(BaseModel):
+    """नई photo जोड़ने की स्कीमा (base64 data-URL)।"""
+
+    photo: str  # data:image/...;base64,...
+
+
+@router.post("/{product_id}/photos", response_model=ProductDetailResponse)
+async def add_product_photo(
     product_id: int,
-    file: UploadFile = File(...),
+    payload: PhotoAddRequest,
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    उत्पाद की फ़ोटो अपलोड करें।
+    📸 Album में नई photo जोड़ें (अधिकतम 7)।
 
-    MVP में: स्थानीय/S3 स्टोरेज पर सेव करके URL रिकॉर्ड में रखें।
-    यह stub है - असली स्टोरेज बैकएंड बाद में जुड़ेगा।
+    base64 data-URL → compress → ProductPhoto (is_primary=False;
+    main photo वही रहती है जो पहले थी — बदलनी हो तो /primary)।
     """
-    # TODO: फ़ाइल स्टोरेज (S3) सेव करें और URL लौटाएँ
-    photo = ProductPhoto(
+    product = await _get_product(db, tenant_id, product_id)
+    if len(product.photos or []) >= MAX_PRODUCT_PHOTOS:
+        from app.core.exceptions import SanskritiException
+        raise SanskritiException(
+            400,
+            f"एक product में अधिकतम {MAX_PRODUCT_PHOTOS} photos हो सकती हैं"
+        )
+
+    url = compress_data_uri(payload.photo)
+    db.add(ProductPhoto(
         tenant_id=tenant_id,  # ARCHITECTURE RULE
-        product_id=product_id,
-        url=f"/uploads/{file.filename}",  # stub URL
+        product_id=product.id,
+        url=url,
         photo_type="original",
-    )
-    db.add(photo)
+        is_primary=not product.photos,  # पहली photo तो main
+    ))
     await db.flush()
-    return {"id": photo.id, "url": photo.url, "message": "फ़ोटो अपलोड हुई"}
+    await db.refresh(product)
+    return _to_detail_response(product)
+
+
+@router.put("/{product_id}/photos/{photo_id}/primary", response_model=ProductDetailResponse)
+async def set_primary_photo(
+    product_id: int,
+    photo_id: int,
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """⭐ किसी photo को MAIN बनाएँ — वही ads में दिखेगी।"""
+    product = await _get_product(db, tenant_id, product_id)
+    target = next((p for p in product.photos if p.id == photo_id), None)
+    if target is None:
+        raise ProductNotFoundError(product_id)
+    for p in product.photos:
+        p.is_primary = p.id == photo_id
+    await db.flush()
+    await db.refresh(product)
+    return _to_detail_response(product)
+
+
+@router.delete("/{product_id}/photos/{photo_id}", response_model=ProductDetailResponse)
+async def delete_product_photo(
+    product_id: int,
+    photo_id: int,
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """Album से photo हटाएँ। Main हटे तो अगली photo खुद main बने।"""
+    product = await _get_product(db, tenant_id, product_id)
+    target = next((p for p in product.photos if p.id == photo_id), None)
+    if target is None:
+        raise ProductNotFoundError(product_id)
+    was_primary = target.is_primary
+    await db.delete(target)
+    await db.flush()
+    await db.refresh(product)
+    if was_primary and product.photos:
+        product.photos[0].is_primary = True
+        await db.flush()
+        await db.refresh(product)
+    return _to_detail_response(product)

@@ -178,6 +178,13 @@ export function APIProvider({ children }) {
         update: (id, data) =>
           call(`/products/${id}`, { method: "PUT", body: data }),
         delete: (id) => call(`/products/${id}`, { method: "DELETE" }),
+        // 📸 Photo album (10-10 user माँग)
+        addPhoto: (id, photo) =>
+          call(`/products/${id}/photos`, { method: "POST", body: { photo } }),
+        setPrimaryPhoto: (id, photoId) =>
+          call(`/products/${id}/photos/${photoId}/primary`, { method: "PUT" }),
+        deletePhoto: (id, photoId) =>
+          call(`/products/${id}/photos/${photoId}`, { method: "DELETE" }),
       },
 
       // Ads

@@ -102,6 +102,19 @@ export const translations = {
     "products.enhanceFail": "फोटो सुंदर नहीं बन पाई — दूसरी फोटो आज़माएँ",
     "products.enhanceDone": "फोटो तैयार! 🎉",
     "products.zoom": "फोटो का आकार",
+    "products.albumLoadFail": "Product नहीं खुला — दोबारा कोशिश करें",
+    "products.mainPhoto": "main photo",
+    "products.isMainNote": "⭐ यह main photo है — ads में यही दिखेगी",
+    "products.makeMain": "इसे main बनाओ — ads में यही दिखेगी",
+    "products.mainDone": "अब यही photo ads में दिखेगी ⭐",
+    "products.addPhoto": "फोटो",
+    "products.addFirstPhoto": "पहली photo जोड़ें",
+    "products.photoAdded": "Photo जुड़ गई! 📸",
+    "products.photoDeleted": "Photo हट गई",
+    "products.photoFail": "Photo में दिक्कत — दोबारा कोशिश करें",
+    "products.deletePhoto": "यह photo हटाएँ",
+    "products.deletePhotoConfirm": "यह photo हटा दें?",
+
 
     // Ads (3-step flow)
     "ads.working": "AI आपका विज्ञापन बना रहा है…",
@@ -331,6 +344,19 @@ export const translations = {
     "products.enhanceFail": "Could not beautify — try another photo",
     "products.enhanceDone": "Photo ready! 🎉",
     "products.zoom": "Photo size",
+    "products.albumLoadFail": "Could not open product — try again",
+    "products.mainPhoto": "main photo",
+    "products.isMainNote": "⭐ This is the main photo — it shows in ads",
+    "products.makeMain": "Make this main — it will show in ads",
+    "products.mainDone": "This photo will now show in ads ⭐",
+    "products.addPhoto": "photo",
+    "products.addFirstPhoto": "Add first photo",
+    "products.photoAdded": "Photo added! 📸",
+    "products.photoDeleted": "Photo removed",
+    "products.photoFail": "Photo problem — try again",
+    "products.deletePhoto": "Remove this photo",
+    "products.deletePhotoConfirm": "Remove this photo?",
+
 
     // Ads (3-step flow)
     "ads.working": "AI is creating your ad…",
