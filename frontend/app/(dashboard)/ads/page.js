@@ -336,18 +336,25 @@ export default function AdsPage() {
     }
   }
 
-  // 👀 Live ad customer की नज़र से देखो (10-10 user माँग:
-  // "software में live ads का button हो") — Meta से ताज़ा preview link,
-  // नई टैब में खुलता है। देखना FREE — पैसा नहीं कटता।
-  async function handlePreview(id) {
+  // 👀📸 असली LIVE ad देखो — Facebook + Instagram (10-10 user माँग:
+  // "facebook/instagram पर जैसे कोई और देख रहा हो वैसी असली ad") —
+  // Meta से असली live post links, नई टैब में। देखना FREE — पैसा नहीं कटता।
+  const [liveLinks, setLiveLinks] = useState({});
+
+  async function handleView(id, platform) {
     setBusy(true);
     try {
-      const d = await api.campaigns.preview(id);
-      if (d?.preview_url) {
-        window.open(d.preview_url, "_blank", "noopener");
-      } else {
-        throw new Error("no url");
+      let links = liveLinks[id];
+      if (!links) {
+        links = await api.campaigns.preview(id);
+        setLiveLinks((m) => ({ ...m, [id]: links }));
       }
+      const url =
+        platform === "ig"
+          ? links?.instagram_url || links?.preview_url
+          : links?.live_url || links?.preview_url;
+      if (!url) throw new Error("no url");
+      window.open(url, "_blank", "noopener");
     } catch {
       setToast(t("ads.previewError"));
       setTimeout(() => setToast(""), 4000);
@@ -918,14 +925,21 @@ export default function AdsPage() {
                           : t("ads.paused")}
                       </p>
                     </div>
-                    {/* 👀 असली LIVE ad Facebook पर — customer वाली सूरत (10-10) */}
-                    <div className="flex items-center gap-2">
+                    {/* 👀📸 असली LIVE ad — Facebook + Instagram (10-10) */}
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       <button
                         className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700"
-                        onClick={() => handlePreview(c.id)}
+                        onClick={() => handleView(c.id, "fb")}
                         disabled={busy}
                       >
-                        👀 {t("ads.liveView")}
+                        👀 {t("ads.liveViewFb")}
+                      </button>
+                      <button
+                        className="rounded-full bg-pink-100 px-3 py-1 text-sm font-semibold text-pink-700"
+                        onClick={() => handleView(c.id, "ig")}
+                        disabled={busy}
+                      >
+                        📸 {t("ads.liveViewIg")}
                       </button>
                       {c.status === "active" ? (
                         <button

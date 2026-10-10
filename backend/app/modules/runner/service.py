@@ -559,17 +559,19 @@ async def get_live_preview(db: AsyncSession, tenant_id: int, campaign_id: int) -
         story = await client.get(
             f"{base}/{ad_id}",
             params={
-                "fields": "creative{effective_object_story_id}",
+                "fields": "creative{effective_object_story_id,instagram_permalink_url}",
                 "access_token": token,
             },
         )
         live_url = None
+        instagram_url = None
         if story.status_code < 400:
-            sid = (
-                story.json().get("creative", {}).get("effective_object_story_id")
-            )
+            creative = story.json().get("creative", {})
+            sid = creative.get("effective_object_story_id")
             if sid:
                 live_url = f"https://facebook.com/{sid}"
+            # 📸 असली Instagram post link (10-10 user माँग: "instagram भी देखनी है")
+            instagram_url = creative.get("instagram_permalink_url")
 
         # 3) backup: mobile-feed preview link (live post न मिले तो)
         prev = await client.get(
@@ -587,6 +589,7 @@ async def get_live_preview(db: AsyncSession, tenant_id: int, campaign_id: int) -
             raise CampaignNotLinkedError(campaign_id)
         return {
             "live_url": live_url,
+            "instagram_url": instagram_url,
             "preview_url": live_url or backup_url,
             "ad_id": ad_id,
         }
