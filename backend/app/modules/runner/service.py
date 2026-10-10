@@ -519,3 +519,74 @@ def _parse_carousel_items(creative) -> list:
         return items if isinstance(items, list) else []
     except (ValueError, TypeError):
         return []
+
+
+async def get_live_preview(db: AsyncSession, tenant_id: int, campaign_id: int) -> dict:
+    """
+    👀 Live ad का customer-view preview link (10-10 user माँग):
+    "software में live ads का button हो — जो चल रही है वहीं से देख सकें"
+
+    Meta ad preview API से ताज़ा link बनता है (mobile feed format —
+    ग्राहक के फोन पर जैसी दिखती है बिल्कुल वैसी)। Link कुछ घंटे चलता है,
+    इसलिए हर बार नया बनाते हैं — software में यह सुविधा हमेशा रहती है।
+    """
+    import re
+    import httpx
+    from app.core.config import settings
+    from app.core.exceptions import CampaignNotLinkedError
+
+    campaign = await get_campaign(db, tenant_id, campaign_id)
+    pc = next(
+        (p for p in campaign.platform_campaigns if p.platform == "meta"), None
+    )
+    if not pc:
+        raise CampaignNotLinkedError(campaign_id)
+
+    base = f"{settings.META_GRAPH_URL}/{settings.META_API_VERSION}"
+    token = settings.META_ACCESS_TOKEN
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        # 1) इस campaign की पहली ad
+        ads = await client.get(
+            f"{base}/{pc.platform_campaign_id}/ads",
+            params={"fields": "id", "limit": 1, "access_token": token},
+        )
+        if ads.status_code >= 400 or not ads.json().get("data"):
+            raise CampaignNotLinkedError(campaign_id)
+        ad_id = ads.json()["data"][0]["id"]
+
+        # 2) असली LIVE ad का Facebook post link (user ने साफ़ कहा:
+        #    preview नहीं — "facebook/instagram पर जैसे कोई और देख रहा हो")
+        story = await client.get(
+            f"{base}/{ad_id}",
+            params={
+                "fields": "creative{effective_object_story_id}",
+                "access_token": token,
+            },
+        )
+        live_url = None
+        if story.status_code < 400:
+            sid = (
+                story.json().get("creative", {}).get("effective_object_story_id")
+            )
+            if sid:
+                live_url = f"https://facebook.com/{sid}"
+
+        # 3) backup: mobile-feed preview link (live post न मिले तो)
+        prev = await client.get(
+            f"{base}/{ad_id}/previews",
+            params={"ad_format": "MOBILE_FEED_STANDARD", "access_token": token},
+        )
+        backup_url = None
+        if prev.status_code < 400 and prev.json().get("data"):
+            body = prev.json()["data"][0].get("body", "")
+            m = re.search(r'src="([^"]+)"', body)
+            if m:
+                backup_url = m.group(1).replace("&amp;", "&")
+
+        if not live_url and not backup_url:
+            raise CampaignNotLinkedError(campaign_id)
+        return {
+            "live_url": live_url,
+            "preview_url": live_url or backup_url,
+            "ad_id": ad_id,
+        }

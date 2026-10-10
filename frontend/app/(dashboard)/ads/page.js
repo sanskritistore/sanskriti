@@ -336,6 +336,26 @@ export default function AdsPage() {
     }
   }
 
+  // 👀 Live ad customer की नज़र से देखो (10-10 user माँग:
+  // "software में live ads का button हो") — Meta से ताज़ा preview link,
+  // नई टैब में खुलता है। देखना FREE — पैसा नहीं कटता।
+  async function handlePreview(id) {
+    setBusy(true);
+    try {
+      const d = await api.campaigns.preview(id);
+      if (d?.preview_url) {
+        window.open(d.preview_url, "_blank", "noopener");
+      } else {
+        throw new Error("no url");
+      }
+    } catch {
+      setToast(t("ads.previewError"));
+      setTimeout(() => setToast(""), 4000);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function resetForm() {
     setStep(1);
     setSelectedProduct(null);
@@ -898,35 +918,45 @@ export default function AdsPage() {
                           : t("ads.paused")}
                       </p>
                     </div>
-                    {c.status === "active" ? (
+                    {/* 👀 असली LIVE ad Facebook पर — customer वाली सूरत (10-10) */}
+                    <div className="flex items-center gap-2">
                       <button
-                        className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-700"
-                        onClick={() => handlePause(c.id)}
+                        className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700"
+                        onClick={() => handlePreview(c.id)}
                         disabled={busy}
                       >
-                        ⏸ {t("ads.pause")}
+                        👀 {t("ads.liveView")}
                       </button>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        {/* ▶️ रुकी ad फिर चालू करो (10-10 launch day toggle) */}
+                      {c.status === "active" ? (
                         <button
-                          className="rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-700"
-                          onClick={() => handleResume(c.id)}
+                          className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-700"
+                          onClick={() => handlePause(c.id)}
                           disabled={busy}
                         >
-                          ▶️ {t("ads.resume")}
+                          ⏸ {t("ads.pause")}
                         </button>
-                        {/* रुकी/draft ad हटाएँ — record सुरक्षित रहता है */}
-                        <button
-                          className="rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-600"
-                          onClick={() => handleDelete(c)}
-                          disabled={busy}
-                          title={t("ads.delete")}
-                        >
-                          🗑 {t("ads.delete")}
-                        </button>
-                      </div>
-                    )}
+                      ) : (
+                        <>
+                          {/* ▶️ रुकी ad फिर चालू करो (10-10 launch day toggle) */}
+                          <button
+                            className="rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-700"
+                            onClick={() => handleResume(c.id)}
+                            disabled={busy}
+                          >
+                            ▶️ {t("ads.resume")}
+                          </button>
+                          {/* रुकी/draft ad हटाएँ — record सुरक्षित रहता है */}
+                          <button
+                            className="rounded-full bg-red-100 px-3 py-1 text-sm font-semibold text-red-600"
+                            onClick={() => handleDelete(c)}
+                            disabled={busy}
+                            title={t("ads.delete")}
+                          >
+                            🗑 {t("ads.delete")}
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 ))
               )}

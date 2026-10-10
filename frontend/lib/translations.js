@@ -135,6 +135,9 @@ export const translations = {
     "ads.launching": "Facebook/Instagram पर भेजा जा रहा है…",
     "ads.daily": "प्रतिदिन",
     "ads.pause": "रोकें",
+    // 👀 असली LIVE ad Facebook पर देखो (10-10 user माँग)
+    "ads.liveView": "Live देखो",
+    "ads.previewError": "Ad अभी तैयार हो रही है — थोड़ी देर बाद फिर देखो।",
     "ads.paused": "रुका हुआ",
     "ads.resume": "चालू करो",
     "ads.delete": "हटाएँ",
@@ -408,6 +411,9 @@ export const translations = {
     "ads.launching": "Sending to Facebook/Instagram…",
     "ads.daily": "per day",
     "ads.pause": "Pause",
+    // 👀 See the real LIVE ad on Facebook (10-10 user request)
+    "ads.liveView": "View live",
+    "ads.previewError": "Ad is still being prepared — try again shortly.",
     "ads.paused": "Paused",
     "ads.resume": "Activate",
     "ads.delete": "Delete",

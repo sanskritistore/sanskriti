@@ -129,6 +129,22 @@ async def launch_campaign(
     return campaign
 
 
+@router.get("/{campaign_id}/preview")
+async def live_preview(
+    campaign_id: int,
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    👀 Live ad customer की नज़र से (10-10 user माँग):
+    "software में live ads का button हो — कभी भी असली ad देख सकें"
+
+    Meta से ताज़ा preview link बनाकर देता है (mobile feed format)।
+    देखना बिल्कुल FREE — इसमें पैसा नहीं कटता।
+    """
+    return await service.get_live_preview(db, tenant_id, campaign_id)
+
+
 @router.post("/{campaign_id}/pause", response_model=CampaignResponse)
 async def pause_campaign(
     campaign_id: int,

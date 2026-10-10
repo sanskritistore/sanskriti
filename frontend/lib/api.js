@@ -228,6 +228,8 @@ export function APIProvider({ children }) {
         resume: (id) => call(`/campaigns/${id}/resume`, { method: "POST" }),
         delete: (id) => call(`/campaigns/${id}`, { method: "DELETE" }),
         records: () => call("/campaigns/records"),
+        // 👀 Live ad customer की नज़र से — ताज़ा preview link (10-10 user माँग)
+        preview: (id) => call(`/campaigns/${id}/preview`),
       },
 
       // Reports — simple "₹X spent → Y customers"
