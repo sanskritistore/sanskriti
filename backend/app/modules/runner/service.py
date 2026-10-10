@@ -201,9 +201,14 @@ async def launch_campaign(
             platform_adset_id=adset_id,
             platform_creative_id=meta_creative_id,
             platform_ad_id=meta_ad_id,
-            platform_status="PAUSED",  # Meta पर PAUSED बना - सच दर्ज करें
+            platform_status="ACTIVE",  # ठीक नीचे chain ACTIVE कर देते हैं
             last_synced_at=datetime.now(timezone.utc),
         ))
+
+        # 4ब. अब पूरी chain चालू करें (सब बन जाने के बाद ही — सुरक्षित)
+        await adapter.activate_campaign_chain(
+            platform_campaign_id, adset_id, meta_ad_id
+        )
 
     # 5. हमारी कैंपेन सक्रिय
     campaign.status = "active"

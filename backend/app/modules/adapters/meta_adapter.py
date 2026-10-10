@@ -112,6 +112,19 @@ class MetaAdapter(BasePlatformAdapter):
         )
         return True
 
+    # ── विधि 4ब: पूरी chain चालू करें (campaign+adset+ad) ──────
+    async def activate_campaign_chain(
+        self, platform_campaign_id: str, adset_id: str, ad_id: str
+    ) -> bool:
+        """Launch के बाद तीनों स्तर ACTIVE करें।
+
+        Chain सुरक्षा के लिए PAUSED बनती है; सब बन जाने पर चालू करना
+        भूल गए थे — 10-10 launch Meta पर PAUSED ही रह गई थी!
+        """
+        for object_id in (ad_id, adset_id, platform_campaign_id):
+            await self._request("POST", object_id, json={"status": "ACTIVE"})
+        return True
+
     # ── विधि 5: कैंपेन स्थिति लाएँ ─────────────────────────
     async def get_campaign_status(self, platform_campaign_id: str) -> Dict[str, Any]:
         """Meta कैंपेन की स्थिति लाएँ।"""
