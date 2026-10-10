@@ -145,6 +145,8 @@ export const translations = {
     "ads.publish": "विज्ञापन चालू करें",
     "ads.next": "आगे बढ़ें →",
     "ads.nextCarousel": "🎠 {n} posters वाली ad → आगे",
+    "ads.albumNote": "🎠 बढ़िया! इस product की {n} photos ad में एक-एक करके दिखेंगी — लोग swipe करके सब देखेंगे!",
+    "ads.albumNote": "🎠 Great! This product's {n} photos will show one-by-one in the ad — people will swipe through all!",
     "ads.carouselTitle": "🎠 और posters जोड़ें? (ज़रूरी नहीं)",
     "ads.carouselHint": "लोग ad पर उँगली फेरकर एक-एक poster देखेंगे — ज़्यादा सेवाएँ दिखेंगी! अधिकतम 4।",
     "ads.carouselNote": "🎠 {n} posters वाली carousel ad + ⭐ रिव्यू कार्ड — लोग swipe करके सब देखेंगे!",

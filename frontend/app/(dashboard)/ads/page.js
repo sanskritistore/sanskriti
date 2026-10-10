@@ -45,6 +45,8 @@ export default function AdsPage() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   // 🎠 Carousel (10-10 user माँग): मुख्य product के अलावा extra posters (अधिकतम 4)
   const [extraProductIds, setExtraProductIds] = useState([]);
+  // 🎠 A (10-10): चुने product की album photos की गिनती — hint दिखाने के लिए
+  const [albumPhotoCount, setAlbumPhotoCount] = useState(0);
   const [budget, setBudget] = useState(null);
   const [geoType, setGeoType] = useState("city"); // city | place | list
   // 📞 ग्राहक-सूची targeting (09-10 user idea): सेव किए phone numbers वालों को ad
@@ -341,6 +343,7 @@ export default function AdsPage() {
     setStep(1);
     setSelectedProduct(null);
     setExtraProductIds([]);
+    setAlbumPhotoCount(0);
     setBudget(null);
     setGeoType("city");
     setAudienceId(null);
@@ -427,6 +430,14 @@ export default function AdsPage() {
                           setExtraProductIds((prev) =>
                             prev.filter((id) => id !== p.id)
                           );
+                          // 🎠 album photos गिनो — hint: "सारी photos ad में दिखेंगी"
+                          setAlbumPhotoCount(0);
+                          api.products
+                            .get(p.id)
+                            .then((d) =>
+                              setAlbumPhotoCount(d?.photos?.length || 0)
+                            )
+                            .catch(() => {});
                         }}
                         className={`card text-left transition-colors ${
                           selectedProduct?.id === p.id
@@ -440,6 +451,16 @@ export default function AdsPage() {
                       </button>
                     ))}
                   </div>
+
+                  {/* 🎠 A: product की अपनी album photos अपने-आप carousel में */}
+                  {albumPhotoCount > 1 && (
+                    <p className="rounded-xl bg-green-50 p-3 text-sm font-semibold text-green-700">
+                      {t("ads.albumNote").replace(
+                        "{n}",
+                        String(albumPhotoCount)
+                      )}
+                    </p>
+                  )}
 
                   {/* 🎠 Carousel: मुख्य चुनने के बाद extra posters (ज़रूरी नहीं) */}
                   {selectedProduct && products.length > 1 && (

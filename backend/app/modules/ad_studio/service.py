@@ -61,19 +61,33 @@ async def generate_ad_creative(
         extra_instructions=extra_instructions,
     )
 
-    # 🎠 Carousel cards (10-10 user माँग): चुने extra products की
-    # primary photo + नाम → JSON list; launch में Meta carousel बनता है
-    carousel_json = None
-    if extra_product_ids:
-        import json as _json
+    # 🎠 Carousel cards (10-10 user माँग, option A+B दोनों):
+    # (A) मुख्य product की अपनी album photos — "product की 5 photos
+    #     ad में एक-एक करके दिखें" (runner main photo को card #1 बनाता है,
+    #     इसलिए यहाँ बाकी photos; ज़्यादा photos वाला product = अपने-आप carousel!)
+    # (B) चुने extra products की primary photo + नाम
+    import json as _json
 
+    cards = []
+    own_photos = sorted(
+        list(getattr(product, "photos", None) or []),
+        key=lambda ph: (not getattr(ph, "is_primary", False), ph.id),
+    )
+    for ph in own_photos[1:6]:  # main के बाद की अधिकतम 5 (Meta कुल 10 cards)
+        cards.append({
+            "image_url": ph.url,
+            "headline": product.name,
+            "description": (product.description or "")[:30],
+        })
+
+    if extra_product_ids and len(cards) < 8:
         extra_result = await db.execute(
             select(Product).where(
                 Product.id.in_(extra_product_ids[:8]),
                 Product.tenant_id == tenant_id,  # ARCHITECTURE RULE
             )
         )
-        cards = []
+        extra_cards = []
         for p in extra_result.scalars().all():
             photos = list(getattr(p, "photos", None) or [])
             chosen = next(
@@ -82,19 +96,20 @@ async def generate_ad_creative(
             )
             if chosen is None:
                 continue  # बिना photo का card नहीं
-            cards.append({
+            extra_cards.append({
                 "_pid": p.id,
                 "image_url": chosen.url,
                 "headline": p.name,
                 "description": (p.description or "")[:30],
             })
         # user के चुने क्रम में रखें (DB क्रम अलग हो सकता है)
-        by_pid = {c["_pid"]: c for c in cards}
-        cards = [by_pid[pid] for pid in extra_product_ids if pid in by_pid]
-        for c in cards:
+        by_pid = {c["_pid"]: c for c in extra_cards}
+        extra_cards = [by_pid[pid] for pid in extra_product_ids if pid in by_pid]
+        for c in extra_cards:
             c.pop("_pid", None)
-        if cards:
-            carousel_json = _json.dumps(cards, ensure_ascii=False)
+        cards.extend(extra_cards[: max(0, 8 - len(cards))])
+
+    carousel_json = _json.dumps(cards, ensure_ascii=False) if cards else None
 
     # क्रिएटिव सेव करें - tenant_id अनिवार्य (ARCHITECTURE RULE)
     creative = AdCreative(
