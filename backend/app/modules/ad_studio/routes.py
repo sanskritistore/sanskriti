@@ -27,6 +27,9 @@ class AdGenerateRequest(BaseModel):
     tone: str = "friendly"  # विज्ञापन की शैली
     # अतिरिक्त निर्देश - जैसे "दिवाली सेल पर ज़ोर दें"
     extra_instructions: str | None = None
+    # 🎠 Carousel (10-10 user माँग): मुख्य product के अलावा ये products भी
+    # अलग-अलग cards बनेंगे (उनकी primary photo + नाम)। अधिकतम 8।
+    extra_product_ids: list[int] | None = None
 
 
 class AdCreativeResponse(BaseModel):
@@ -40,6 +43,7 @@ class AdCreativeResponse(BaseModel):
     image_url: str | None
     language: str
     is_approved: bool
+    carousel_items: str | None = None
 
     class Config:
         from_attributes = True
@@ -59,6 +63,7 @@ async def generate_ad(
         language=payload.language,
         tone=payload.tone,
         extra_instructions=payload.extra_instructions,
+        extra_product_ids=payload.extra_product_ids,
     )
     return creative
 

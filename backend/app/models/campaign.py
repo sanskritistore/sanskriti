@@ -134,6 +134,9 @@ class AdCreative(Base, TimestampMixin, TenantMixin):
     description: Mapped[str] = mapped_column(Text, nullable=True)
     # उपयोग की गई फ़ोटो (यदि)
     image_url: Mapped[str] = mapped_column(String(512), nullable=True)
+    # 🎠 Carousel cards (10-10 user माँग) — JSON list: [{"image_url","headline","description"}]
+    # भरा हो (≥2 items) तो launch Meta carousel creative बनाता है
+    carousel_items: Mapped[str] = mapped_column(Text, nullable=True)
     # किस भाषा में बना
     language: Mapped[str] = mapped_column(String(10), default="hi", nullable=False)
     # टेनेंट ने स्वीकार किया या नहीं (संशोधन के बाद)

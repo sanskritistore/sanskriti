@@ -5,7 +5,7 @@ Tenant = संस्कृति पर एक व्यवसाय (दुक
 हर अन्य टेबल tenant_id से इससे जुड़ता है।
 """
 
-from sqlalchemy import Boolean, Integer, String, Text
+from sqlalchemy import Boolean, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -39,6 +39,11 @@ class Tenant(Base, TimestampMixin):
     language: Mapped[str] = mapped_column(String(10), default="hi", nullable=False)
     # वॉलेट बैलेंस (₹ में) - कैंपेन बजट यहीं से कटता है
     wallet_balance: Mapped[float] = mapped_column(default=0.0, nullable=False)
+
+    # ⭐ असली Google rating (10-10 user माँग: "reviews दिखें ताकि लोग जानें fake नहीं")
+    # भरी हो तो carousel ad के आख़िरी card में review card अपने-आप जुड़ता है
+    google_rating: Mapped[float] = mapped_column(Float, nullable=True)
+    google_reviews_count: Mapped[int] = mapped_column(Integer, nullable=True)
     # खाता सक्रिय है या नहीं
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

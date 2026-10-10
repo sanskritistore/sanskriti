@@ -177,15 +177,64 @@ async def launch_campaign(
 
         # Creative: हिंदी text + WhatsApp बटन
         wa_link = f"https://wa.me/91{tenant.phone}"
-        meta_creative_id = await adapter.create_ad_creative(
-            f"{campaign.name} - creative",
-            image_hash,
-            (creative.primary_text if creative and creative.primary_text
-             else (product.description if product else campaign.name)),
-            wa_link,
-            (creative.headline if creative and creative.headline
-             else (product.name if product else campaign.name)),
+        primary_text = (
+            creative.primary_text if creative and creative.primary_text
+            else (product.description if product else campaign.name)
         )
+        headline_text = (
+            creative.headline if creative and creative.headline
+            else (product.name if product else campaign.name)
+        )
+
+        # 🎠 Carousel ad? (10-10 user माँग: कई posters swipe करके दिखें)
+        carousel_items = _parse_carousel_items(creative)
+        if carousel_items:
+            cards = [{
+                "image_hash": image_hash,
+                "headline": headline_text,
+                "description": (product.description if product else "") or "",
+            }]
+            for item in carousel_items[:8]:  # Meta सीमा: कुल 10 cards
+                card_path = await _image_candidate_to_path(item.get("image_url"))
+                if not card_path:
+                    continue
+                card_hash = await adapter.upload_ad_image(card_path)
+                cards.append({
+                    "image_hash": card_hash,
+                    "headline": item.get("headline", ""),
+                    "description": item.get("description", ""),
+                })
+
+            # ⭐ आख़िरी card: असली Google reviews ("fake नहीं है" का प्रमाण)
+            if tenant.google_rating:
+                from app.core.review_card import generate_review_card
+                review_path = generate_review_card(
+                    tenant.name or "हमारी दुकान",
+                    tenant.google_rating,
+                    tenant.google_reviews_count or 0,
+                )
+                review_hash = await adapter.upload_ad_image(review_path)
+                cards.append({
+                    "image_hash": review_hash,
+                    "headline": f"⭐ {tenant.google_rating:.1f} Google Rating",
+                    "description": "असली ग्राहकों के reviews",
+                })
+
+            logger.info("carousel ad: %d cards (campaign %s)", len(cards), campaign.id)
+            meta_creative_id = await adapter.create_carousel_creative(
+                f"{campaign.name} - carousel",
+                cards,
+                primary_text,
+                wa_link,
+            )
+        else:
+            meta_creative_id = await adapter.create_ad_creative(
+                f"{campaign.name} - creative",
+                image_hash,
+                primary_text,
+                wa_link,
+                headline_text,
+            )
 
         # अंतिम Ad
         meta_ad_id = await adapter.create_ad(
@@ -402,3 +451,57 @@ async def _resolve_image_path(product, creative) -> str:
     # डिफ़ॉल्ट तस्वीर (Sanskriti brand)
     from app.core.config import settings
     return settings.DEFAULT_AD_IMAGE_PATH
+
+
+async def _image_candidate_to_path(candidate: str) -> str | None:
+    """
+    🎠 Carousel card की तस्वीर: data-URL / http URL / local path → local JPEG path।
+
+    न मिले तो None (card छोड़ दें — पूरी ad न रोके)।
+    """
+    import base64  # noqa: F401
+    import os
+    import tempfile
+
+    import httpx
+
+    if not candidate or not isinstance(candidate, str):
+        return None
+    try:
+        if candidate.startswith("data:image"):
+            from app.core.images import data_uri_to_jpeg_bytes
+            tmp = tempfile.NamedTemporaryFile(
+                delete=False, suffix=".jpg", prefix="sanskriti-card-"
+            )
+            tmp.write(data_uri_to_jpeg_bytes(candidate))
+            tmp.close()
+            return tmp.name
+        if candidate.startswith(("http://", "https://")):
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.get(candidate)
+                resp.raise_for_status()
+            tmp = tempfile.NamedTemporaryFile(
+                delete=False, suffix=".jpg", prefix="sanskriti-card-"
+            )
+            tmp.write(resp.content)
+            tmp.close()
+            return tmp.name
+        if os.path.exists(candidate):
+            return candidate
+    except Exception:
+        logger.warning("carousel card image resolve fail — card छोड़ा", exc_info=True)
+    return None
+
+
+def _parse_carousel_items(creative) -> list:
+    """creative.carousel_items (JSON string) → list of card dicts।"""
+    import json as _json
+
+    raw = getattr(creative, "carousel_items", None) if creative else None
+    if not raw:
+        return []
+    try:
+        items = _json.loads(raw)
+        return items if isinstance(items, list) else []
+    except (ValueError, TypeError):
+        return []

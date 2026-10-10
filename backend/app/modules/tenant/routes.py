@@ -31,6 +31,8 @@ class BusinessResponse(BaseModel):
     language: str
     wallet_balance: float
     is_active: bool
+    google_rating: float | None = None
+    google_reviews_count: int | None = None
 
     class Config:
         from_attributes = True
@@ -45,6 +47,9 @@ class BusinessUpdate(BaseModel):
     address: str | None = None
     city: str | None = None
     language: str | None = None
+    # ⭐ Google rating (carousel review card के लिए, 10-10)
+    google_rating: float | None = None
+    google_reviews_count: int | None = None
 
 
 def _to_response(tenant: Tenant, owner_name: str | None) -> BusinessResponse:
@@ -60,6 +65,8 @@ def _to_response(tenant: Tenant, owner_name: str | None) -> BusinessResponse:
         language=tenant.language,
         wallet_balance=tenant.wallet_balance,
         is_active=tenant.is_active,
+        google_rating=tenant.google_rating,
+        google_reviews_count=tenant.google_reviews_count,
     )
 
 
@@ -111,6 +118,11 @@ async def update_my_profile(
         tenant.city = payload.city
     if payload.language is not None:
         tenant.language = payload.language
+    # ⭐ Google rating (carousel review card)
+    if payload.google_rating is not None:
+        tenant.google_rating = payload.google_rating
+    if payload.google_reviews_count is not None:
+        tenant.google_reviews_count = payload.google_reviews_count
 
     # मालिक का नाम User टेबल में अपडेट करें
     if payload.owner_name is not None:

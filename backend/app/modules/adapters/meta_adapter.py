@@ -307,6 +307,50 @@ class MetaAdapter(BasePlatformAdapter):
         )
         return response["id"]
 
+    async def create_carousel_creative(
+        self,
+        name: str,
+        cards: list,
+        message: str,
+        link: str,
+    ) -> str:
+        """
+        🎠 Carousel Ad Creative — कई cards, लोग swipe करके एक-एक देखते हैं।
+
+        (10-10 user माँग: "poster पर click करे तो चारों posters एक-एक करके दिखें")
+
+        cards: [{"image_hash", "headline", "description"}] — 2 से 10 तक।
+        link: हर card का WhatsApp wa.me लिंक (CTA बटन)।
+        """
+        child_attachments = []
+        for card in cards:
+            attachment = {
+                "image_hash": card["image_hash"],
+                "name": card.get("headline", "")[:40],  # Meta headline limit
+                "description": (card.get("description") or "")[:30],
+                "link": link,
+                "call_to_action": {
+                    "type": "WHATSAPP_MESSAGE",
+                    "value": {"link": link},
+                },
+            }
+            child_attachments.append(attachment)
+
+        object_story_spec = {
+            "page_id": self.page_id,
+            "link_data": {
+                "link": link,
+                "message": message,
+                "child_attachments": child_attachments,
+                "multi_share_optimized": False,  # user का क्रम ही रहे (मुख्य poster पहले, review आख़िर में)
+            },
+        }
+        payload = {"name": name, "object_story_spec": object_story_spec}
+        response = await self._request(
+            "POST", f"act_{self.ad_account_id}/adcreatives", json=payload
+        )
+        return response["id"]
+
     async def create_ad(
         self, adset_id: str, creative_id: str, name: str
     ) -> str:

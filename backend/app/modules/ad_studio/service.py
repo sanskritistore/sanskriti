@@ -37,6 +37,7 @@ async def generate_ad_creative(
     language: str = "hi",
     tone: str = "friendly",
     extra_instructions: str | None = None,
+    extra_product_ids: list[int] | None = None,
 ) -> AdCreative:
     """
     AI से विज्ञापन क्रिएटिव बनाएँ।
@@ -60,6 +61,41 @@ async def generate_ad_creative(
         extra_instructions=extra_instructions,
     )
 
+    # 🎠 Carousel cards (10-10 user माँग): चुने extra products की
+    # primary photo + नाम → JSON list; launch में Meta carousel बनता है
+    carousel_json = None
+    if extra_product_ids:
+        import json as _json
+
+        extra_result = await db.execute(
+            select(Product).where(
+                Product.id.in_(extra_product_ids[:8]),
+                Product.tenant_id == tenant_id,  # ARCHITECTURE RULE
+            )
+        )
+        cards = []
+        for p in extra_result.scalars().all():
+            photos = list(getattr(p, "photos", None) or [])
+            chosen = next(
+                (ph for ph in photos if getattr(ph, "is_primary", False)),
+                photos[0] if photos else None,
+            )
+            if chosen is None:
+                continue  # बिना photo का card नहीं
+            cards.append({
+                "_pid": p.id,
+                "image_url": chosen.url,
+                "headline": p.name,
+                "description": (p.description or "")[:30],
+            })
+        # user के चुने क्रम में रखें (DB क्रम अलग हो सकता है)
+        by_pid = {c["_pid"]: c for c in cards}
+        cards = [by_pid[pid] for pid in extra_product_ids if pid in by_pid]
+        for c in cards:
+            c.pop("_pid", None)
+        if cards:
+            carousel_json = _json.dumps(cards, ensure_ascii=False)
+
     # क्रिएटिव सेव करें - tenant_id अनिवार्य (ARCHITECTURE RULE)
     creative = AdCreative(
         tenant_id=tenant_id,
@@ -67,6 +103,7 @@ async def generate_ad_creative(
         headline=headline,
         primary_text=primary_text,
         description=description,
+        carousel_items=carousel_json,
         language=language,
         is_approved=False,  # टेनेंट की स्वीकृति बाद में
         ai_model=settings.AI_MODEL,
