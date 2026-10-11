@@ -593,6 +593,7 @@ async def update_frame(
                         "s": max(15, min(300, int(w.get("s", 100)))),
                         "kx": max(-30, min(30, int(w.get("kx", 0)))),
                         "ky": max(-20, min(20, int(w.get("ky", 0)))),
+                        "h": max(40, min(200, int(w.get("h", 100)))),
                         **({"gv": int(w["gv"])} if w.get("gv") else {})}
             if isinstance(g.get("L"), dict) or isinstance(g.get("R"), dict):
                 old["on"] = 1 if g.get("on", 1) else 0
