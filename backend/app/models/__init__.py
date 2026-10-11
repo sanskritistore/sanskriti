@@ -12,6 +12,7 @@ from app.models.campaign import Campaign, PlatformCampaign, AdCreative
 from app.models.payment import WalletTransaction, Lead
 from app.models.otp import OtpCode
 from app.models.store_order import StoreOrder
+from app.models.store_frame import StoreFrame
 
 __all__ = [
     "Base",
@@ -26,4 +27,5 @@ __all__ = [
     "Lead",
     "OtpCode",
     "StoreOrder",
+    "StoreFrame",
 ]

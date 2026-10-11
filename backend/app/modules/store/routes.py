@@ -243,3 +243,118 @@ async def delete_order(
     await db.delete(o)
     await db.commit()
     return {"ok": True}
+
+
+# ============================================================
+# Frame Maker — owner खुद नए frames बनाए (11-10 user माँग)
+# ============================================================
+
+from app.models.store_frame import StoreFrame  # noqa: E402
+
+
+def _frame_dict(f: StoreFrame) -> dict:
+    """Store frontend को चाहिए fields (config frames.json जैसी shape)।"""
+    return {
+        "id": f.frame_id,
+        "name": f.name,
+        "en": "Custom",
+        "shape": f.shape,
+        "style": "stl-img",
+        "ratio": f.ratio,
+        "ar": f.ar,
+        "base": f.base,
+        "rating": f.rating,
+        "window": json.loads(f.window),
+        "img": f"/api/v1/store/frames/{f.id}/img",
+    }
+
+
+@router.get("/frames")
+async def list_custom_frames(db: AsyncSession = Depends(get_db)):
+    """PUBLIC: सभी active custom frames — store pages इन्हें static config से merge करते हैं।"""
+    rows = (
+        await db.execute(
+            select(StoreFrame).where(StoreFrame.active == True)  # noqa: E712
+            .order_by(StoreFrame.id)
+        )
+    ).scalars().all()
+    return [_frame_dict(f) for f in rows]
+
+
+@router.post("/frames", status_code=201)
+async def create_frame(
+    name: str = Form(...),
+    shape: str = Form("rect"),
+    ratio: str = Form("2:3"),
+    ar: str = Form("2/3"),
+    base: int = Form(399),
+    rating: float = Form(4.5),
+    window: str = Form("{}"),
+    img_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Admin: नया custom frame — PNG border + photo window (%) + pricing।"""
+    if shape not in {"rect", "rounded", "oval", "circle", "heart"}:
+        raise SanskritiException(400, "shape इनमें से हो: rect/rounded/oval/circle/heart")
+    try:
+        w = json.loads(window)
+        for k in ("x", "y", "w", "h"):
+            float(w[k])
+    except Exception:
+        raise SanskritiException(400, "window JSON खराब है — {x,y,w,h} चाहिए")
+
+    f = StoreFrame(
+        tenant_id=tenant_id,
+        frame_id="TMP",
+        name=name.strip()[:120],
+        shape=shape, ratio=ratio[:8], ar=ar[:12],
+        base=int(base), rating=float(rating),
+        img_path="", window=window,
+    )
+    db.add(f)
+    await db.flush()
+    f.frame_id = f"fr-c{f.id}"
+
+    data = await img_file.read()
+    if len(data) > 20 * 1024 * 1024:
+        raise SanskritiException(400, "PNG बहुत बड़ी है (20MB तक)")
+    path = _store_dir() / f"{f.frame_id}.png"
+    path.write_bytes(data)
+    f.img_path = str(path)
+
+    await db.commit()
+    return {"ok": True, "frame": _frame_dict(f)}
+
+
+@router.get("/frames/{fid}/img")
+async def frame_image(fid: int, db: AsyncSession = Depends(get_db)):
+    """PUBLIC: frame की PNG border (store pages पर दिखती है)।"""
+    f = (
+        await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
+    ).scalar_one_or_none()
+    if not f or not Path(f.img_path).exists():
+        raise SanskritiException(404, "frame image नहीं मिली")
+    return FileResponse(f.img_path, media_type="image/png")
+
+
+@router.delete("/frames/{fid}")
+async def delete_frame(
+    fid: int,
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Admin: custom frame हटाओ (soft-off + file delete)।"""
+    f = (
+        await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
+    ).scalar_one_or_none()
+    if not f or f.tenant_id != tenant_id:
+        raise SanskritiException(404, "frame नहीं मिला")
+    f.active = False
+    if f.img_path and Path(f.img_path).exists():
+        try:
+            Path(f.img_path).unlink()
+        except Exception:
+            pass
+    await db.commit()
+    return {"ok": True}
