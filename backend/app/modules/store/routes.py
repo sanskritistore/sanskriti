@@ -432,6 +432,33 @@ async def update_frame_sample(
 
 
 
+@router.post("/frames/{fid}/img")
+async def update_frame_img(
+    fid: int,
+    img_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Admin: मौजूदा frame की PNG border बदलो/वापस लाओ — frame दोबारा बनाने की ज़रूरत नहीं।
+    img_data DB में भी लिखते हैं ताकि ephemeral disk साफ होने पर भी PNG बची रहे (11-10, fr-c25 घायल हुआ था)।"""
+    f = (
+        await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
+    ).scalar_one_or_none()
+    if not f or f.tenant_id != tenant_id:
+        raise SanskritiException(404, "frame नहीं मिला")
+    data = await img_file.read()
+    if len(data) > 20 * 1024 * 1024:
+        raise SanskritiException(400, "PNG बहुत बड़ी है (20MB तक)")
+    path = _store_dir() / f"{f.frame_id}.png"
+    path.write_bytes(data)
+    f.img_path = str(path)
+    f.img_data = data
+    f.img_ct = img_file.content_type or "image/png"
+    await db.commit()
+    return {"ok": True, "img": f"/api/v1/store/frames/{f.id}/img"}
+
+
+
 @router.patch("/frames/{fid}")
 async def update_frame(
     fid: int,
