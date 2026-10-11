@@ -463,6 +463,14 @@ async def update_frame(
         f.ratio = r[:8]
         if ":" in r:
             f.ar = r.replace(":", "/")
+    if "window" in payload:
+        try:
+            w = payload["window"]
+            f.window = json.dumps({"x": float(w["x"]), "y": float(w["y"]),
+                                   "w": float(w["w"]), "h": float(w["h"]),
+                                   "shape": str(w.get("shape", "rect"))})
+        except Exception:
+            raise SanskritiException(400, "window JSON खराब — {x,y,w,h}")
     await db.commit()
     return {"ok": True, "frame": _frame_dict(f)}
 
