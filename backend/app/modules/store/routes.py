@@ -77,7 +77,7 @@ async def create_order(
     size_h: int = Form(...),
     thickness_mm: int = Form(3),
     price: int = Form(...),
-    settings: str = Form("{}"),
+    settings_json: str = Form("{}", alias="settings"),
     print_file: UploadFile = File(...),
     preview_file: UploadFile = File(None),
     db: AsyncSession = Depends(get_db),
@@ -90,7 +90,7 @@ async def create_order(
     if not name.strip():
         raise SanskritiException(400, "नाम ज़रूरी है")
     try:
-        json.loads(settings or "{}")
+        json.loads(settings_json or "{}")
     except Exception:
         raise SanskritiException(400, "settings JSON खराब है")
 
@@ -108,7 +108,7 @@ async def create_order(
         size_h=int(size_h),
         thickness_mm=int(thickness_mm),
         price=int(price),
-        settings=settings,
+        settings=settings_json,
         status="new",
     )
     db.add(o)
