@@ -18,6 +18,7 @@ object storage (R2/B2) में ले जाना है। Admin को same
 """
 
 import json
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, Body, Depends, File, Form, UploadFile
@@ -290,6 +291,7 @@ def _frame_dict(f: StoreFrame) -> dict:
         "samp": f"/api/v1/store/frames/{f.id}/sample" if f.samp_data else "",
         "samp_pos": f.samp_pos or "",
         "glare_set": f.glare_set or "",
+        "glare": f"/api/v1/store/frames/{f.id}/glare" if f.glare_data else "",
         "draw": json.loads(f.draw) if f.draw else None,
         "ptype": f.ptype,
     }
@@ -458,6 +460,47 @@ async def update_frame_img(
     await db.commit()
     return {"ok": True, "img": f"/api/v1/store/frames/{f.id}/img"}
 
+
+@router.get("/frames/{fid}/glare")
+async def get_frame_glare(fid: int, db: AsyncSession = Depends(get_db)):
+    """Public: frame की custom reflection PNG (DB से — deploy-proof)।"""
+    f = (
+        await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
+    ).scalar_one_or_none()
+    if not f or not f.glare_data:
+        raise SanskritiException(404, "custom reflection नहीं है")
+    return Response(content=f.glare_data, media_type=f.glare_ct or "image/png",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
+@router.post("/frames/{fid}/glare")
+async def upload_frame_glare(
+    fid: int,
+    glare_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Admin: frame की अपनी window-reflection PNG upload करो (Dev 11-10)।
+    glare_set.gv = version timestamp — browser cache अपने-आप टूटे।"""
+    f = (
+        await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
+    ).scalar_one_or_none()
+    if not f or f.tenant_id != tenant_id:
+        raise SanskritiException(404, "frame नहीं मिला")
+    data = await glare_file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise SanskritiException(400, "reflection PNG बहुत बड़ी है (5MB तक)")
+    f.glare_data = data
+    f.glare_ct = glare_file.content_type or "image/png"
+    # version bump → नया URL, पुरानी cache टूटे
+    try:
+        g = json.loads(f.glare_set) if f.glare_set else {}
+    except Exception:
+        g = {}
+    g["gv"] = int(time.time())
+    f.glare_set = json.dumps(g)
+    await db.commit()
+    return {"ok": True, "glare": f"/api/v1/store/frames/{f.id}/glare"}
 
 
 @router.patch("/frames/{fid}")
