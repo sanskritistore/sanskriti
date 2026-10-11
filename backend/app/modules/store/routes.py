@@ -20,7 +20,7 @@ object storage (R2/B2) में ले जाना है। Admin को same
 import json
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -352,6 +352,42 @@ async def frame_image(fid: int, db: AsyncSession = Depends(get_db)):
     if not f or not Path(f.img_path).exists():
         raise SanskritiException(404, "frame image नहीं मिली")
     return FileResponse(f.img_path, media_type="image/png")
+
+
+
+@router.patch("/frames/{fid}")
+async def update_frame(
+    fid: int,
+    payload: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Admin: frame edit — shape/name/base/rating/ratio बदलो (delete की ज़रूरत नहीं)।"""
+    f = (
+        await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
+    ).scalar_one_or_none()
+    if not f or f.tenant_id != tenant_id:
+        raise SanskritiException(404, "frame नहीं मिला")
+    if "shape" in payload:
+        if payload["shape"] not in {"rect", "rounded", "oval", "circle", "heart"}:
+            raise SanskritiException(400, "shape: rect/rounded/oval/circle/heart")
+        f.shape = payload["shape"]
+    if "name" in payload:
+        name = str(payload["name"]).strip()
+        if not name:
+            raise SanskritiException(400, "नाम खाली नहीं हो सकता")
+        f.name = name[:60]
+    if "base" in payload:
+        f.base = max(0, int(payload["base"]))
+    if "rating" in payload:
+        f.rating = min(5.0, max(0.0, float(payload["rating"])))
+    if "ratio" in payload:
+        r = str(payload["ratio"]).strip()
+        f.ratio = r[:8]
+        if ":" in r:
+            f.ar = r.replace(":", "/")
+    await db.commit()
+    return {"ok": True, "frame": _frame_dict(f)}
 
 
 @router.delete("/frames/{fid}")
