@@ -50,6 +50,9 @@ async def startup():
         await conn.execute(text(
             "ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS draw VARCHAR(1000) NOT NULL DEFAULT ''"
         ))
+        await conn.execute(text(
+            "ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS ptype VARCHAR(20) NOT NULL DEFAULT 'frame'"
+        ))
 
 
 @app.get("/health", tags=["health"])

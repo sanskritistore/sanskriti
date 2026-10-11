@@ -40,6 +40,8 @@ class StoreFrame(Base, TenantMixin, TimestampMixin):
     img_path: Mapped[str] = mapped_column(String(300), nullable=False, default="")
     # Generator frame (PNG के बिना): border colors/widths + windows (collage)
     draw: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
+    # product type: frame / acrylic / album — Template Maker एक engine, तीनों products (11-10)
+    ptype: Mapped[str] = mapped_column(String(20), nullable=False, default="frame")
     # photo window — frame के % में: {"x":12,"y":10,"w":76,"h":80}
     window: Mapped[str] = mapped_column(String(200), nullable=False)
 

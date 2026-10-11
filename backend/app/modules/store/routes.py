@@ -267,6 +267,7 @@ def _frame_dict(f: StoreFrame) -> dict:
         "window": json.loads(f.window),
         "img": f"/api/v1/store/frames/{f.id}/img" if f.img_path else "",
         "draw": json.loads(f.draw) if f.draw else None,
+        "ptype": f.ptype,
     }
 
 
@@ -292,6 +293,7 @@ async def create_frame(
     rating: float = Form(4.5),
     window: str = Form("{}"),
     draw: str = Form(""),
+    ptype: str = Form("frame"),
     img_file: UploadFile = File(None),
     db: AsyncSession = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
@@ -306,9 +308,12 @@ async def create_frame(
     except Exception:
         raise SanskritiException(400, "window JSON खराब है — {x,y,w,h} चाहिए")
 
+    if ptype not in {"frame", "acrylic", "album"}:
+        raise SanskritiException(400, "ptype: frame/acrylic/album")
     f = StoreFrame(
         tenant_id=tenant_id,
         frame_id="TMP",
+        ptype=ptype,
         name=name.strip()[:120],
         shape=shape, ratio=ratio[:8], ar=ar[:12],
         base=int(base), rating=float(rating),
