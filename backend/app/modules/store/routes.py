@@ -289,6 +289,7 @@ def _frame_dict(f: StoreFrame) -> dict:
         "img": f"/api/v1/store/frames/{f.id}/img" if (f.img_path or f.img_data) else "",
         "samp": f"/api/v1/store/frames/{f.id}/sample" if f.samp_data else "",
         "samp_pos": f.samp_pos or "",
+        "glare_set": f.glare_set or "",
         "draw": json.loads(f.draw) if f.draw else None,
         "ptype": f.ptype,
     }
@@ -490,6 +491,14 @@ async def update_frame(
         f.ratio = r[:8]
         if ":" in r:
             f.ar = r.replace(":", "/")
+    if "glare_set" in payload:
+        try:
+            g = payload["glare_set"]
+            f.glare_set = json.dumps({"on": 1 if g.get("on", 1) else 0,
+                                      "op": max(10, min(100, int(g.get("op", 55)))),
+                                      "x": max(0, min(100, int(g.get("x", 30))))})
+        except Exception:
+            pass
     if "window" in payload:
         try:
             w = payload["window"]

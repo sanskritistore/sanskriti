@@ -45,6 +45,7 @@ class StoreFrame(Base, TenantMixin, TimestampMixin):
     samp_ct: Mapped[str] = mapped_column(String(50), nullable=False, default="image/webp")
     # sample photo की position (card में ऐसे ही दिखेगी): {"z":120,"mx":50,"my":40} — z=zoom%, mx/my=0-100 (11-10)
     samp_pos: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    glare_set: Mapped[str] = mapped_column(String(80), nullable=False, default="")
     # Generator frame (PNG के बिना): border colors/widths + windows (collage)
     draw: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     # product type: frame / acrylic / album — Template Maker एक engine, तीनों products (11-10)
