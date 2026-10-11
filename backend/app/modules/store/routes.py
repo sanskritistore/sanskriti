@@ -292,6 +292,7 @@ def _frame_dict(f: StoreFrame) -> dict:
         "samp_pos": f.samp_pos or "",
         "glare_set": f.glare_set or "",
         "glare": f"/api/v1/store/frames/{f.id}/glare" if f.glare_data else "",
+        "glare2": f"/api/v1/store/frames/{f.id}/glare2" if f.glare2_data else "",
         "draw": json.loads(f.draw) if f.draw else None,
         "ptype": f.ptype,
     }
@@ -497,10 +498,54 @@ async def upload_frame_glare(
         g = json.loads(f.glare_set) if f.glare_set else {}
     except Exception:
         g = {}
-    g["gv"] = int(time.time())
+    if not isinstance(g.get("L"), dict):
+        g["L"] = {}
+    g["L"]["gv"] = int(time.time())
     f.glare_set = json.dumps(g)
     await db.commit()
     return {"ok": True, "glare": f"/api/v1/store/frames/{f.id}/glare"}
+
+
+@router.get("/frames/{fid}/glare2")
+async def get_frame_glare2(fid: int, db: AsyncSession = Depends(get_db)):
+    """Public: frame की दाएँ-तरफ़ की custom reflection PNG (दो-खिड़की system, Dev 11-10)।"""
+    f = (
+        await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
+    ).scalar_one_or_none()
+    if not f or not f.glare2_data:
+        raise SanskritiException(404, "custom reflection नहीं है")
+    return Response(content=f.glare2_data, media_type=f.glare2_ct or "image/png",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
+@router.post("/frames/{fid}/glare2")
+async def upload_frame_glare2(
+    fid: int,
+    glare_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Admin: दाएँ खिड़की की अपनी PNG upload — glare_set.R.gv bump।"""
+    f = (
+        await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
+    ).scalar_one_or_none()
+    if not f or f.tenant_id != tenant_id:
+        raise SanskritiException(404, "frame नहीं मिला")
+    data = await glare_file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise SanskritiException(400, "reflection PNG बहुत बड़ी है (5MB तक)")
+    f.glare2_data = data
+    f.glare2_ct = glare_file.content_type or "image/png"
+    try:
+        g = json.loads(f.glare_set) if f.glare_set else {}
+    except Exception:
+        g = {}
+    if not isinstance(g.get("R"), dict):
+        g["R"] = {}
+    g["R"]["gv"] = int(time.time())
+    f.glare_set = json.dumps(g)
+    await db.commit()
+    return {"ok": True, "glare2": f"/api/v1/store/frames/{f.id}/glare2"}
 
 
 @router.patch("/frames/{fid}")
@@ -538,11 +583,27 @@ async def update_frame(
         try:
             g = payload["glare_set"]
             old = json.loads(f.glare_set) if f.glare_set else {}
-            old.update({"on": 1 if g.get("on", 1) else 0,
-                        "op": max(10, min(100, int(g.get("op", 55)))),
-                        "x": max(0, min(100, int(g.get("x", 30)))),
-                        "y": max(0, min(100, int(g.get("y", 0)))),
-                        "s": max(40, min(300, int(g.get("s", 100))))})
+            def _win(w, dflt):
+                if not isinstance(w, dict):
+                    return dflt
+                return {"on": 1 if w.get("on", 1) else 0,
+                        "op": max(10, min(100, int(w.get("op", 55)))),
+                        "x": max(0, min(100, int(w.get("x", 30)))),
+                        "y": max(0, min(100, int(w.get("y", 0)))),
+                        "s": max(40, min(300, int(w.get("s", 100)))),
+                        **({"gv": int(w["gv"])} if w.get("gv") else {})}
+            if isinstance(g.get("L"), dict) or isinstance(g.get("R"), dict):
+                old["on"] = 1 if g.get("on", 1) else 0
+                keepL = old.get("L") if isinstance(old.get("L"), dict) else {}
+                keepR = old.get("R") if isinstance(old.get("R"), dict) else {}
+                old["L"] = {**keepL, **_win(g.get("L"), keepL)} if g.get("L") is not None else keepL
+                old["R"] = {**keepR, **_win(g.get("R"), keepR)} if g.get("R") is not None else keepR
+            else:  # पुराना flat format → बाएँ खिड़की मानो
+                old.update({"on": 1 if g.get("on", 1) else 0,
+                            "op": max(10, min(100, int(g.get("op", 55)))),
+                            "x": max(0, min(100, int(g.get("x", 30)))),
+                            "y": max(0, min(100, int(g.get("y", 0)))),
+                            "s": max(40, min(300, int(g.get("s", 100))))})
             f.glare_set = json.dumps(old)
         except Exception:
             pass

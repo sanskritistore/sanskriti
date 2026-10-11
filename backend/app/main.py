@@ -62,6 +62,9 @@ async def startup():
         await conn.execute(text("ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS glare_set VARCHAR(80) NOT NULL DEFAULT ''"))
         await conn.execute(text("ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS glare_data BYTEA"))
         await conn.execute(text("ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS glare_ct VARCHAR(50) NOT NULL DEFAULT 'image/png'"))
+        await conn.execute(text("ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS glare2_data BYTEA"))
+        await conn.execute(text("ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS glare2_ct VARCHAR(50) NOT NULL DEFAULT 'image/png'"))
+        await conn.execute(text("ALTER TABLE store_frames ALTER COLUMN glare_set TYPE VARCHAR(255)"))
         await conn.execute(text("ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS print_data BYTEA"))
         await conn.execute(text("ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS preview_data BYTEA"))
 
