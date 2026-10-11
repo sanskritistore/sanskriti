@@ -537,9 +537,13 @@ async def update_frame(
     if "glare_set" in payload:
         try:
             g = payload["glare_set"]
-            f.glare_set = json.dumps({"on": 1 if g.get("on", 1) else 0,
-                                      "op": max(10, min(100, int(g.get("op", 55)))),
-                                      "x": max(0, min(100, int(g.get("x", 30))))})
+            old = json.loads(f.glare_set) if f.glare_set else {}
+            old.update({"on": 1 if g.get("on", 1) else 0,
+                        "op": max(10, min(100, int(g.get("op", 55)))),
+                        "x": max(0, min(100, int(g.get("x", 30)))),
+                        "y": max(0, min(100, int(g.get("y", 0)))),
+                        "s": max(40, min(300, int(g.get("s", 100))))})
+            f.glare_set = json.dumps(old)
         except Exception:
             pass
     if "window" in payload:
