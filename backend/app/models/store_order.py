@@ -6,7 +6,7 @@
 print + acrylic + hanging → dispatch।
 """
 
-from sqlalchemy import BigInteger, Integer, String, Text
+from sqlalchemy import BigInteger, Integer, LargeBinary, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base

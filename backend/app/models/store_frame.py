@@ -6,7 +6,7 @@ owner खुद PNG border upload करके, photo window mark करके,
 बिना coding के नया frame बनाए → तुरंत store पर live।
 """
 
-from sqlalchemy import BigInteger, Boolean, Float, Integer, String
+from sqlalchemy import BigInteger, Boolean, Float, Integer, LargeBinary, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
