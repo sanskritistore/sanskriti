@@ -21,7 +21,7 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter, Body, Depends, File, Form, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -59,7 +59,7 @@ def _public_dict(o: StoreOrder) -> dict:
         "thickness_mm": o.thickness_mm,
         "price": o.price,
         "status": o.status,
-        "has_files": bool(o.print_path),
+        "has_files": bool(o.print_path or o.print_data),
         "created_at": o.created_at.isoformat() if o.created_at else None,
     }
 
@@ -123,11 +123,13 @@ async def create_order(
     ppath = d / f"{o.order_no}_print.jpg"
     ppath.write_bytes(pdata)
     o.print_path = str(ppath)
+    o.print_data = pdata
     if preview_file is not None:
         vdata = await preview_file.read()
         vpath = d / f"{o.order_no}_preview.jpg"
         vpath.write_bytes(vdata)
         o.preview_path = str(vpath)
+        o.preview_data = vdata
 
     await db.commit()
     return {"ok": True, "order_no": o.order_no, "id": o.id}
@@ -167,6 +169,9 @@ async def download_print(
         (await db.execute(select(StoreOrder).where(StoreOrder.id == oid))).scalar_one_or_none(),
         tenant_id,
     )
+    if o.print_data:
+        return Response(content=bytes(o.print_data), media_type="image/jpeg",
+                        headers={"Content-Disposition": f'attachment; filename="{o.order_no}_print.jpg"'})
     if not o.print_path or not Path(o.print_path).exists():
         raise SanskritiException(404, "print file नहीं मिली (disk साफ हुई होगी)")
     dpi = ""
@@ -192,6 +197,8 @@ async def download_preview(
         (await db.execute(select(StoreOrder).where(StoreOrder.id == oid))).scalar_one_or_none(),
         tenant_id,
     )
+    if o.preview_data or o.print_data:
+        return Response(content=bytes(o.preview_data or o.print_data), media_type="image/jpeg")
     path = o.preview_path or o.print_path
     if not path or not Path(path).exists():
         raise SanskritiException(404, "preview नहीं मिली")
@@ -265,7 +272,7 @@ def _frame_dict(f: StoreFrame) -> dict:
         "base": f.base,
         "rating": f.rating,
         "window": json.loads(f.window),
-        "img": f"/api/v1/store/frames/{f.id}/img" if f.img_path else "",
+        "img": f"/api/v1/store/frames/{f.id}/img" if (f.img_path or f.img_data) else "",
         "draw": json.loads(f.draw) if f.draw else None,
         "ptype": f.ptype,
     }
@@ -336,6 +343,8 @@ async def create_frame(
         path = _store_dir() / f"{f.frame_id}.png"
         path.write_bytes(data)
         f.img_path = str(path)
+        f.img_data = path.read_bytes()
+        f.img_ct = img_file.content_type or "image/png"
     elif not draw:
         raise SanskritiException(400, "PNG या draw — दोनों में से एक चाहिए")
 
@@ -349,6 +358,8 @@ async def frame_image(fid: int, db: AsyncSession = Depends(get_db)):
     f = (
         await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
     ).scalar_one_or_none()
+    if f and f.img_data:
+        return Response(content=bytes(f.img_data), media_type=f.img_ct or "image/png")
     if not f or not Path(f.img_path).exists():
         raise SanskritiException(404, "frame image नहीं मिली")
     return FileResponse(f.img_path, media_type="image/png")

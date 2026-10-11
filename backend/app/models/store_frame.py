@@ -38,6 +38,9 @@ class StoreFrame(Base, TenantMixin, TimestampMixin):
     rating: Mapped[float] = mapped_column(Float, nullable=False, default=4.5)
 
     img_path: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    # PNG bytes database में — Render free disk हर deploy पर मिट जाती है, DB हमेशा रहता है (11-10)
+    img_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    img_ct: Mapped[str] = mapped_column(String(50), nullable=False, default="image/png")
     # Generator frame (PNG के बिना): border colors/widths + windows (collage)
     draw: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     # product type: frame / acrylic / album — Template Maker एक engine, तीनों products (11-10)

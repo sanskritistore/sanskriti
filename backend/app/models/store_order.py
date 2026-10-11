@@ -44,6 +44,9 @@ class StoreOrder(Base, TenantMixin, TimestampMixin):
     # files (disk पर path)
     print_path: Mapped[str | None] = mapped_column(String(300), nullable=True)
     preview_path: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # bytes DB में — disk ephemeral है (11-10)
+    print_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    preview_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
 
     # pipeline status: new → printed → ready → dispatched → done (cancelled अलग)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="new", index=True)
