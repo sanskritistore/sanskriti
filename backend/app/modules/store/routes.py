@@ -287,6 +287,7 @@ def _frame_dict(f: StoreFrame) -> dict:
         "rating": f.rating,
         "window": json.loads(f.window),
         "img": f"/api/v1/store/frames/{f.id}/img" if (f.img_path or f.img_data) else "",
+        "samp": f"/api/v1/store/frames/{f.id}/sample" if f.samp_data else "",
         "draw": json.loads(f.draw) if f.draw else None,
         "ptype": f.ptype,
     }
@@ -316,10 +317,11 @@ async def create_frame(
     draw: str = Form(""),
     ptype: str = Form("frame"),
     img_file: UploadFile = File(None),
+    sample_file: UploadFile = File(None),
     db: AsyncSession = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    """Admin: नया custom frame — PNG border + photo window (%) + pricing।"""
+    """Admin: नया custom frame — PNG border + photo window (%) + pricing + sample photo (card में दिखने वाली)।"""
     if not valid_shape(shape):
         raise SanskritiException(400, "shape अमान्य — preset या custom:TL,TR,BR,BL (0-100)")
     try:
@@ -361,6 +363,12 @@ async def create_frame(
         f.img_ct = img_file.content_type or "image/png"
     elif not draw:
         raise SanskritiException(400, "PNG या draw — दोनों में से एक चाहिए")
+    if sample_file is not None:
+        sdata = await sample_file.read()
+        if len(sdata) > 10 * 1024 * 1024:
+            raise SanskritiException(400, "sample photo बहुत बड़ी है (10MB तक)")
+        f.samp_data = sdata
+        f.samp_ct = sample_file.content_type or "image/webp"
 
     await db.commit()
     return {"ok": True, "frame": _frame_dict(f)}
@@ -377,6 +385,39 @@ async def frame_image(fid: int, db: AsyncSession = Depends(get_db)):
     if not f or not Path(f.img_path).exists():
         raise SanskritiException(404, "frame image नहीं मिली")
     return FileResponse(f.img_path, media_type="image/png")
+
+
+@router.get("/frames/{fid}/sample")
+async def frame_sample(fid: int, db: AsyncSession = Depends(get_db)):
+    """PUBLIC: frame की sample photo (cards में photo की जगह दिखती है)।"""
+    f = (
+        await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
+    ).scalar_one_or_none()
+    if not f or not f.samp_data:
+        raise SanskritiException(404, "sample photo नहीं मिली")
+    return Response(content=bytes(f.samp_data), media_type=f.samp_ct or "image/webp")
+
+
+@router.post("/frames/{fid}/sample")
+async def update_frame_sample(
+    fid: int,
+    sample_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Admin: मौजूदा frame की sample photo बदलो (frame दोबारा बनाने की ज़रूरत नहीं)।"""
+    f = (
+        await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
+    ).scalar_one_or_none()
+    if not f or f.tenant_id != tenant_id:
+        raise SanskritiException(404, "frame नहीं मिला")
+    sdata = await sample_file.read()
+    if len(sdata) > 10 * 1024 * 1024:
+        raise SanskritiException(400, "sample photo बहुत बड़ी है (10MB तक)")
+    f.samp_data = sdata
+    f.samp_ct = sample_file.content_type or "image/webp"
+    await db.commit()
+    return {"ok": True, "samp": f"/api/v1/store/frames/{f.id}/sample"}
 
 
 
