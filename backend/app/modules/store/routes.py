@@ -288,6 +288,7 @@ def _frame_dict(f: StoreFrame) -> dict:
         "window": json.loads(f.window),
         "img": f"/api/v1/store/frames/{f.id}/img" if (f.img_path or f.img_data) else "",
         "samp": f"/api/v1/store/frames/{f.id}/sample" if f.samp_data else "",
+        "samp_pos": f.samp_pos or "",
         "draw": json.loads(f.draw) if f.draw else None,
         "ptype": f.ptype,
     }
@@ -318,6 +319,7 @@ async def create_frame(
     ptype: str = Form("frame"),
     img_file: UploadFile = File(None),
     sample_file: UploadFile = File(None),
+    sample_settings: str = Form(""),
     db: AsyncSession = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
@@ -402,6 +404,7 @@ async def frame_sample(fid: int, db: AsyncSession = Depends(get_db)):
 async def update_frame_sample(
     fid: int,
     sample_file: UploadFile = File(...),
+    settings: str = Form(None),
     db: AsyncSession = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
@@ -416,6 +419,14 @@ async def update_frame_sample(
         raise SanskritiException(400, "sample photo बहुत बड़ी है (10MB तक)")
     f.samp_data = sdata
     f.samp_ct = sample_file.content_type or "image/webp"
+    if settings:
+        try:
+            sp = json.loads(settings)
+            f.samp_pos = json.dumps({"z": max(100, min(300, int(sp.get("z", 100)))),
+                                     "mx": max(0, min(100, int(sp.get("mx", 50)))),
+                                     "my": max(0, min(100, int(sp.get("my", 50))))})
+        except Exception:
+            pass
     await db.commit()
     return {"ok": True, "samp": f"/api/v1/store/frames/{f.id}/sample"}
 
