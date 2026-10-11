@@ -35,6 +35,20 @@ from app.models.store_order import StoreOrder
 router = APIRouter()
 
 ALLOWED_STATUS = {"new", "printed", "ready", "dispatched", "done", "cancelled"}
+SHAPES = {"rect", "rounded", "oval", "circle", "heart", "bean", "egg", "arch", "scallop"}
+
+
+def valid_shape(s: str) -> bool:
+    """Preset shapes + custom:TL,TR,BR,BL (0-100% हर कोना) — photo window कटाई का नियम।"""
+    if s in SHAPES:
+        return True
+    if s.startswith("custom:"):
+        try:
+            parts = s[7:].split(",")
+            return len(parts) == 4 and all(0 <= float(p) <= 100 for p in parts)
+        except ValueError:
+            return False
+    return False
 
 
 def _store_dir() -> Path:
@@ -306,8 +320,8 @@ async def create_frame(
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     """Admin: नया custom frame — PNG border + photo window (%) + pricing।"""
-    if shape not in {"rect", "rounded", "oval", "circle", "heart"}:
-        raise SanskritiException(400, "shape इनमें से हो: rect/rounded/oval/circle/heart")
+    if not valid_shape(shape):
+        raise SanskritiException(400, "shape अमान्य — preset या custom:TL,TR,BR,BL (0-100)")
     try:
         w = json.loads(window)
         for k in ("x", "y", "w", "h"):
@@ -380,8 +394,8 @@ async def update_frame(
     if not f or f.tenant_id != tenant_id:
         raise SanskritiException(404, "frame नहीं मिला")
     if "shape" in payload:
-        if payload["shape"] not in {"rect", "rounded", "oval", "circle", "heart"}:
-            raise SanskritiException(400, "shape: rect/rounded/oval/circle/heart")
+        if not valid_shape(payload["shape"]):
+            raise SanskritiException(400, "shape अमान्य — preset या custom:TL,TR,BR,BL (0-100)")
         f.shape = payload["shape"]
     if "name" in payload:
         name = str(payload["name"]).strip()

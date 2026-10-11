@@ -25,8 +25,8 @@ class StoreFrame(Base, TenantMixin, TimestampMixin):
 
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     shape: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="rect",
-        comment="photo window का shape: rect/rounded/oval/circle/heart",
+        String(30), nullable=False, default="rect",
+        comment="photo window का shape: preset (rect/oval/heart/bean/egg/arch/scallop…) या custom:TL,TR,BR,BL",
     )
     ratio: Mapped[str] = mapped_column(
         String(8), nullable=False, default="2:3", comment="sizes group: 1:1/2:3/3:2"
