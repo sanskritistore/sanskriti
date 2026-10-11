@@ -37,7 +37,9 @@ class StoreFrame(Base, TenantMixin, TimestampMixin):
     base: Mapped[int] = mapped_column(Integer, nullable=False, default=399)
     rating: Mapped[float] = mapped_column(Float, nullable=False, default=4.5)
 
-    img_path: Mapped[str] = mapped_column(String(300), nullable=False)
+    img_path: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    # Generator frame (PNG के बिना): border colors/widths + windows (collage)
+    draw: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     # photo window — frame के % में: {"x":12,"y":10,"w":76,"h":80}
     window: Mapped[str] = mapped_column(String(200), nullable=False)
 

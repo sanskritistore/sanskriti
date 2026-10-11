@@ -45,6 +45,11 @@ async def startup():
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # छोटे column adds (create_all मौजूदा table नहीं बदलता)
+        from sqlalchemy import text
+        await conn.execute(text(
+            "ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS draw VARCHAR(1000) NOT NULL DEFAULT ''"
+        ))
 
 
 @app.get("/health", tags=["health"])

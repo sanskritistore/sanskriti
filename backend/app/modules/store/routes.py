@@ -265,7 +265,8 @@ def _frame_dict(f: StoreFrame) -> dict:
         "base": f.base,
         "rating": f.rating,
         "window": json.loads(f.window),
-        "img": f"/api/v1/store/frames/{f.id}/img",
+        "img": f"/api/v1/store/frames/{f.id}/img" if f.img_path else "",
+        "draw": json.loads(f.draw) if f.draw else None,
     }
 
 
@@ -290,7 +291,8 @@ async def create_frame(
     base: int = Form(399),
     rating: float = Form(4.5),
     window: str = Form("{}"),
-    img_file: UploadFile = File(...),
+    draw: str = Form(""),
+    img_file: UploadFile = File(None),
     db: AsyncSession = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
@@ -316,12 +318,21 @@ async def create_frame(
     await db.flush()
     f.frame_id = f"fr-c{f.id}"
 
-    data = await img_file.read()
-    if len(data) > 20 * 1024 * 1024:
-        raise SanskritiException(400, "PNG बहुत बड़ी है (20MB तक)")
-    path = _store_dir() / f"{f.frame_id}.png"
-    path.write_bytes(data)
-    f.img_path = str(path)
+    if draw:
+        try:
+            json.loads(draw)
+        except Exception:
+            raise SanskritiException(400, "draw JSON खराब है")
+        f.draw = draw
+    if img_file is not None:
+        data = await img_file.read()
+        if len(data) > 20 * 1024 * 1024:
+            raise SanskritiException(400, "PNG बहुत बड़ी है (20MB तक)")
+        path = _store_dir() / f"{f.frame_id}.png"
+        path.write_bytes(data)
+        f.img_path = str(path)
+    elif not draw:
+        raise SanskritiException(400, "PNG या draw — दोनों में से एक चाहिए")
 
     await db.commit()
     return {"ok": True, "frame": _frame_dict(f)}
