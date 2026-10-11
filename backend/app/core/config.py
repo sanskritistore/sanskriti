@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     # उत्पादन में कड़ाई से false रखें!
     OTP_DEV_MODE: bool = False
 
+
+    # स्टोर ऑर्डर pipeline (11-10) — customer की 4K print files
+    STORE_TENANT_ID: int = 1  # store owner tenant (CSC Print Cafe = 1)
+    STORE_UPLOAD_DIR: str = "app/assets/store_orders"  # ⚠️ ephemeral — बाद में R2/B2
+
     # Meta (Facebook/Instagram) API
     META_APP_ID: str = ""
     META_APP_SECRET: str = ""

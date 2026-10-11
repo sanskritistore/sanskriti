@@ -38,9 +38,13 @@ app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
 @app.on_event("startup")
 async def startup():
-    """स्टार्टअप पर डेटाबेस कनेक्शन जाँचें।"""
-    # नोट: असली माइग्रेशन alembic से होते हैं, यह सिर्फ डेवलपमेंट के लिए।
-    pass
+    """स्टार्टअप पर डेटाबेस तैयार रखें।"""
+    # नई tables auto-create (checkfirst=True — मौजूदा tables छूता नहीं)।
+    # असली schema बदलाव alembic से; नए मॉडल यहाँ से तुरंत live।
+    from app import models  # noqa: F401 — सभी मॉडल register हों
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
 
 @app.get("/health", tags=["health"])

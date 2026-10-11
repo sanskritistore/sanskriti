@@ -24,6 +24,7 @@ from app.modules.billing.routes import router as billing_router
 from app.modules.whatsapp.routes import router as whatsapp_router
 from app.modules.audiences.routes import router as audiences_router
 from app.modules.shop.routes import router as shop_router
+from app.modules.store.routes import router as store_router
 
 api_router = APIRouter()
 
@@ -46,3 +47,5 @@ api_router.include_router(whatsapp_router, prefix="/whatsapp", tags=["whatsapp"]
 api_router.include_router(audiences_router, prefix="/audiences", tags=["audiences"])
 # 🏪 Public मिनी-दुकान (बिना login — customer के लिए, 10-10 user option B)
 api_router.include_router(shop_router, prefix="/shop", tags=["shop"])
+# 🖨️ स्टोर ऑर्डर pipeline (11-10) — public order create + admin queue
+api_router.include_router(store_router, prefix="/store", tags=["store"])

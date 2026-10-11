@@ -11,6 +11,7 @@ from app.models.product import Product, ProductPhoto
 from app.models.campaign import Campaign, PlatformCampaign, AdCreative
 from app.models.payment import WalletTransaction, Lead
 from app.models.otp import OtpCode
+from app.models.store_order import StoreOrder
 
 __all__ = [
     "Base",
@@ -24,4 +25,5 @@ __all__ = [
     "WalletTransaction",
     "Lead",
     "OtpCode",
+    "StoreOrder",
 ]
