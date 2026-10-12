@@ -399,14 +399,52 @@ async def create_frame(
     return {"ok": True, "frame": _frame_dict(f)}
 
 
+# Downscaled card-size frame imgs — 12-10 रात: cards को 5400px PNG नहीं, 600px webp चाहिए (20x हल्का)
+_IMG_THUMB_CACHE: dict = {}  # (fid, w) -> (img_len, webp_bytes)
+
+
+def _frame_thumb_webp(data: bytes, w: int):
+    """frame PNG को w px चौड़ा webp में बदलो (alpha रखो — border transparent होती है)।"""
+    import io as _io
+
+    from PIL import Image
+    im = Image.open(_io.BytesIO(data)).convert("RGBA")
+    if im.width > w:
+        im = im.resize((w, max(1, round(im.height * w / im.width))), Image.LANCZOS)
+    out = _io.BytesIO()
+    im.save(out, "WEBP", quality=82, method=4)
+    return out.getvalue()
+
+
 @router.get("/frames/{fid}/img")
-async def frame_image(fid: int, db: AsyncSession = Depends(get_db)):
-    """PUBLIC: frame की PNG border (store pages पर दिखती है)।"""
+async def frame_image(fid: int, w: int = 0, db: AsyncSession = Depends(get_db)):
+    """PUBLIC: frame की PNG border (store pages पर दिखती है)। ?w=600 = छोटा webp (cards)।"""
+    import asyncio
+
     f = (
         await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
     ).scalar_one_or_none()
     if f and f.img_data:
-        return Response(content=bytes(f.img_data), media_type=f.img_ct or "image/png")
+        data = bytes(f.img_data)
+        if w and 60 <= w <= 2000:
+            key = (f.id, w)
+            hit = _IMG_THUMB_CACHE.get(key)
+            if not hit or hit[0] != len(data):
+                thumb = await asyncio.to_thread(_frame_thumb_webp, data, w)
+                if len(_IMG_THUMB_CACHE) > 400:
+                    _IMG_THUMB_CACHE.pop(next(iter(_IMG_THUMB_CACHE)))
+                hit = (len(data), thumb)
+                _IMG_THUMB_CACHE[key] = hit
+            return Response(
+                content=hit[1],
+                media_type="image/webp",
+                headers={"Cache-Control": "public, max-age=86400"},
+            )
+        return Response(
+            content=data,
+            media_type=f.img_ct or "image/png",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
     if not f or not Path(f.img_path).exists():
         raise SanskritiException(404, "frame image नहीं मिली")
     return FileResponse(f.img_path, media_type="image/png")
