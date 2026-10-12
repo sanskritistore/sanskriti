@@ -301,15 +301,17 @@ def _frame_dict(
         "base": f.base,
         "rating": f.rating,
         "window": json.loads(f.window),
-        "img": f"/api/v1/store/frames/{f.id}/img" if has_img else "",
-        "samp": f"/api/v1/store/frames/{f.id}/sample" if has_samp else "",
+        # ?v=len — image/sample/glare बदलते ही URL बदल जाए → browser पुराना cached version कभी न दिखाए
+        # (12-10 रात bug 2: frame edit के बाद PLP पर पुरानी photo — img URL same रहने से browser cache)
+        "img": f"/api/v1/store/frames/{f.id}/img?v={img_len or 0}" if has_img else "",
+        "samp": f"/api/v1/store/frames/{f.id}/sample?v={samp_len or 0}" if has_samp else "",
         # ?v=mask_len — mask बदलते ही URL बदल जाए → browser पुराना cached mask कभी न दिखाए
         # (12-10 रात bug: टूटा 19B mask 24h cache हो गया था, server ठीक होने के बाद भी photo गायब रही)
         "mask": f"/api/v1/store/frames/{f.id}/mask?v={mask_len or 0}" if has_img else "",
         "samp_pos": f.samp_pos or "",
         "glare_set": f.glare_set or "",
-        "glare": f"/api/v1/store/frames/{f.id}/glare" if has_glare else "",
-        "glare2": f"/api/v1/store/frames/{f.id}/glare2" if has_glare2 else "",
+        "glare": f"/api/v1/store/frames/{f.id}/glare?v={glare_len or 0}" if has_glare else "",
+        "glare2": f"/api/v1/store/frames/{f.id}/glare2?v={glare2_len or 0}" if has_glare2 else "",
         "draw": json.loads(f.draw) if f.draw else None,
         "ptype": f.ptype,
         "code": f.code or "",
