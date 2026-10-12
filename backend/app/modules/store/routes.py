@@ -24,8 +24,9 @@ from pathlib import Path
 from fastapi import APIRouter, Body, Depends, File, Form, UploadFile
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import deferred
 
 from app.api.deps import get_current_tenant_id
 from app.core.config import settings
@@ -274,8 +275,20 @@ async def delete_order(
 from app.models.store_frame import StoreFrame  # noqa: E402
 
 
-def _frame_dict(f: StoreFrame) -> dict:
-    """Store frontend को चाहिए fields (config frames.json जैसी shape)।"""
+def _frame_dict(
+    f: StoreFrame,
+    img_len: int | None = None,
+    samp_len: int | None = None,
+    glare_len: int | None = None,
+    glare2_len: int | None = None,
+) -> dict:
+    """Store frontend को चाहिए fields (config frames.json जैसी shape)।
+    list endpoint lengths पास करता है (octet_length — भारी bytes load किए बिना पता चलता है)।"""
+    has_img = (img_len > 0) if img_len is not None else bool(f.img_path or f.img_data)
+    has_img = has_img or bool(f.img_path)
+    has_samp = (samp_len > 0) if samp_len is not None else bool(f.samp_data)
+    has_glare = (glare_len > 0) if glare_len is not None else bool(f.glare_data)
+    has_glare2 = (glare2_len > 0) if glare2_len is not None else bool(f.glare2_data)
     return {
         "id": f.frame_id,
         "name": f.name,
@@ -287,29 +300,52 @@ def _frame_dict(f: StoreFrame) -> dict:
         "base": f.base,
         "rating": f.rating,
         "window": json.loads(f.window),
-        "img": f"/api/v1/store/frames/{f.id}/img" if (f.img_path or f.img_data) else "",
-        "samp": f"/api/v1/store/frames/{f.id}/sample" if f.samp_data else "",
-        "mask": f"/api/v1/store/frames/{f.id}/mask" if (f.img_path or f.img_data) else "",
+        "img": f"/api/v1/store/frames/{f.id}/img" if has_img else "",
+        "samp": f"/api/v1/store/frames/{f.id}/sample" if has_samp else "",
+        "mask": f"/api/v1/store/frames/{f.id}/mask" if has_img else "",
         "samp_pos": f.samp_pos or "",
         "glare_set": f.glare_set or "",
-        "glare": f"/api/v1/store/frames/{f.id}/glare" if f.glare_data else "",
-        "glare2": f"/api/v1/store/frames/{f.id}/glare2" if f.glare2_data else "",
+        "glare": f"/api/v1/store/frames/{f.id}/glare" if has_glare else "",
+        "glare2": f"/api/v1/store/frames/{f.id}/glare2" if has_glare2 else "",
         "draw": json.loads(f.draw) if f.draw else None,
         "ptype": f.ptype,
         "code": f.code or "",
     }
 
 
+# भारी binary columns — list endpoint इन्हें load नहीं करता (45 frames × 1-2MB = RAM खत्म, 12-10 रात)
+_FRAME_HEAVY = (
+    deferred(StoreFrame.img_data),
+    deferred(StoreFrame.samp_data),
+    deferred(StoreFrame.glare_data),
+    deferred(StoreFrame.glare2_data),
+    deferred(StoreFrame.mask_data),
+    deferred(StoreFrame.thumb_data),
+)
+
+
 @router.get("/frames")
 async def list_custom_frames(db: AsyncSession = Depends(get_db)):
-    """PUBLIC: सभी active custom frames — store pages इन्हें static config से merge करते हैं।"""
+    """PUBLIC: सभी active custom frames — store pages इन्हें static config से merge करते हैं।
+    भारी bytes की जगह सिर्फ उनकी LENGTH आती है — हज़ार frames पर भी list हल्की रहेगी।"""
     rows = (
         await db.execute(
-            select(StoreFrame).where(StoreFrame.active == True)  # noqa: E712
+            select(
+                StoreFrame,
+                func.octet_length(StoreFrame.img_data).label("img_len"),
+                func.octet_length(StoreFrame.samp_data).label("samp_len"),
+                func.octet_length(StoreFrame.glare_data).label("glare_len"),
+                func.octet_length(StoreFrame.glare2_data).label("glare2_len"),
+            )
+            .options(*_FRAME_HEAVY)
+            .where(StoreFrame.active == True)  # noqa: E712
             .order_by(StoreFrame.id)
         )
-    ).scalars().all()
-    return [_frame_dict(f) for f in rows]
+    ).all()
+    return [
+        _frame_dict(f, img_len=il or 0, samp_len=sl or 0, glare_len=gl or 0, glare2_len=g2 or 0)
+        for f, il, sl, gl, g2 in rows
+    ]
 
 
 @router.post("/frames", status_code=201)
@@ -386,6 +422,7 @@ async def create_frame(
         f.img_path = str(path)
         f.img_data = path.read_bytes()
         f.img_ct = img_file.content_type or "image/png"
+        await _regen_frame_variants(f, data)  # mask + thumb तुरंत तैयार — customer कभी generation का इंतज़ार न करे
     elif not draw:
         raise SanskritiException(400, "PNG या draw — दोनों में से एक चाहिए")
     if sample_file is not None:
@@ -427,16 +464,27 @@ async def frame_image(fid: int, w: int = 0, db: AsyncSession = Depends(get_db)):
     if f and f.img_data:
         data = bytes(f.img_data)
         if w and 60 <= w <= 2000:
-            key = (f.id, w)
-            hit = _IMG_THUMB_CACHE.get(key)
-            if not hit or hit[0] != len(data):
+            thumb = None
+            if w == 600 and f.thumb_data:  # standard card size — DB से हमेशा तुरंत
+                thumb = bytes(f.thumb_data)
+            else:
+                key = (f.id, w)
+                hit = _IMG_THUMB_CACHE.get(key)
+                if hit and hit[0] == len(data):
+                    thumb = hit[1]
+            if thumb is None:
                 thumb = await asyncio.to_thread(_frame_thumb_webp, data, w)
+                if w == 600:  # एक बार generate → DB में हमेशा के लिए
+                    f.thumb_data = thumb
+                    try:
+                        await db.commit()
+                    except Exception:
+                        pass
                 if len(_IMG_THUMB_CACHE) > 400:
                     _IMG_THUMB_CACHE.pop(next(iter(_IMG_THUMB_CACHE)))
-                hit = (len(data), thumb)
-                _IMG_THUMB_CACHE[key] = hit
+                _IMG_THUMB_CACHE[(f.id, w)] = (len(data), thumb)
             return Response(
-                content=hit[1],
+                content=thumb,
                 media_type="image/webp",
                 headers={"Cache-Control": "public, max-age=86400"},
             )
@@ -467,7 +515,6 @@ async def frame_sample(fid: int, db: AsyncSession = Depends(get_db)):
 # कोई भी shape चलेगी — heart, star, flower, multi-curve — कुछ hardcode नहीं।
 # SPEED (12-10 रात, Dev: "site slow ho gai"): 320px + bytes-based alpha + to_thread —
 # free server पर event loop कभी block न हो, हर mask ~100ms में।
-_MASK_CACHE: dict = {}  # fid -> (img_len, mask_bytes) — img बदलते ही नया mask
 
 
 def _frame_mask_png(data: bytes):
@@ -554,9 +601,24 @@ def _frame_mask_png(data: bytes):
     return out.getvalue()
 
 
+async def _regen_frame_variants(f: StoreFrame, data: bytes) -> None:
+    """PNG बदलते ही mask + card thumb दोबारा बनाकर DB में save करो (background thread में CPU)।"""
+    import asyncio
+
+    try:
+        f.mask_data = await asyncio.to_thread(_frame_mask_png, data)
+    except Exception:
+        f.mask_data = None
+    try:
+        f.thumb_data = await asyncio.to_thread(_frame_thumb_webp, data, 600)
+    except Exception:
+        f.thumb_data = None
+
+
 @router.get("/frames/{fid}/mask")
 async def frame_mask(fid: int, db: AsyncSession = Depends(get_db)):
-    """PUBLIC: frame PNG के अंदरूनी transparent हिस्से का mask (photo इसी shape में कटेगी)।"""
+    """PUBLIC: frame PNG के अंदरूनी transparent हिस्से का mask (photo इसी shape में कटेगी)।
+    एक बार generate → DB में हमेशा के लिए — cold start पर दोबारा CPU काम नहीं (12-10 रात)।"""
     import asyncio
 
     f = (
@@ -564,23 +626,24 @@ async def frame_mask(fid: int, db: AsyncSession = Depends(get_db)):
     ).scalar_one_or_none()
     if not f:
         raise SanskritiException(404, "frame नहीं मिला")
-    data = bytes(f.img_data) if f.img_data else None
-    if data is None and f.img_path and Path(f.img_path).exists():
-        data = Path(f.img_path).read_bytes()
-    if not data:
-        raise SanskritiException(404, "frame image नहीं मिली")
-    hit = _MASK_CACHE.get(f.id)
-    if not hit or hit[0] != len(data):
+    m = bytes(f.mask_data) if f.mask_data else None
+    if m is None:
+        data = bytes(f.img_data) if f.img_data else None
+        if data is None and f.img_path and Path(f.img_path).exists():
+            data = Path(f.img_path).read_bytes()
+        if not data:
+            raise SanskritiException(404, "frame image नहीं मिली")
         # CPU काम अलग thread में — free server पर बाकी requests (site) कभी अटकें नहीं
         m = await asyncio.to_thread(_frame_mask_png, data)
         if m is None:
             raise SanskritiException(404, "इस PNG में अंदरूनी transparent window नहीं")
-        hit = (len(data), m)
-        if len(_MASK_CACHE) > 200:  # free RAM बचाओ — सबसे पुरानी entry हटाओ
-            _MASK_CACHE.pop(next(iter(_MASK_CACHE)))
-        _MASK_CACHE[f.id] = hit
+        f.mask_data = m  # अगली बार तुरंत DB से — generation सिर्फ एक बार
+        try:
+            await db.commit()
+        except Exception:
+            pass  # save fail हो तो भी इस request का जवाब मिले
     return Response(
-        content=hit[1],
+        content=m,
         media_type="image/png",
         headers={"Cache-Control": "public, max-age=86400"},  # browser एक दिन cache रखे — बार-बार server बोझ नहीं
     )
@@ -640,6 +703,7 @@ async def update_frame_img(
     f.img_path = str(path)
     f.img_data = data
     f.img_ct = img_file.content_type or "image/png"
+    await _regen_frame_variants(f, data)  # mask + thumb तुरंत तैयार — customer कभी generation का इंतज़ार न करे
     await db.commit()
     return {"ok": True, "img": f"/api/v1/store/frames/{f.id}/img"}
 

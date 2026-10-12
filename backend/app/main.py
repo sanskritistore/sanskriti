@@ -68,42 +68,8 @@ async def startup():
         await conn.execute(text("ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS code VARCHAR(12) NOT NULL DEFAULT ''"))
         await conn.execute(text("ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS print_data BYTEA"))
         await conn.execute(text("ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS preview_data BYTEA"))
-
-    # Frame masks पहले से गर्म (warm) रखो — 12-10 रात: पहला visitor cold-mask generation का इंतज़ार न करे।
-    # Background thread: startup कभी block न हो, free server पर धीरे-धीरे cache भरे।
-    import asyncio
-
-    asyncio.get_event_loop().run_in_executor(None, _warm_frame_masks)
-
-
-def _warm_frame_masks():
-    """सभी PNG frames के masks background में generate करके _MASK_CACHE भर दो।"""
-    import asyncio as _a
-
-    from sqlalchemy import select as _sel
-
-    from app.core.database import AsyncSessionLocal
-    from app.models import StoreFrame
-    from app.modules.store.routes import _MASK_CACHE, _frame_mask_png
-
-    async def _go():
-        async with AsyncSessionLocal() as db:
-            frames = (await db.execute(_sel(StoreFrame).where(StoreFrame.img_data.isnot(None)))).scalars().all()
-            for f in frames:
-                data = bytes(f.img_data)
-                if f.id in _MASK_CACHE and _MASK_CACHE[f.id][0] == len(data):
-                    continue
-                try:
-                    m = _frame_mask_png(data)
-                except Exception:
-                    m = None
-                if m:
-                    _MASK_CACHE[f.id] = (len(data), m)
-
-    try:
-        _a.run(_go())
-    except Exception:
-        pass  # warm-up fail हो तो lazy generation ही चलेगा — कोई नुकसान नहीं
+        await conn.execute(text("ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS mask_data BYTEA"))
+        await conn.execute(text("ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS thumb_data BYTEA"))
 
 
 @app.get("/health", tags=["health"])

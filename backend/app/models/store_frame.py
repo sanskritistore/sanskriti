@@ -50,6 +50,10 @@ class StoreFrame(Base, TenantMixin, TimestampMixin):
     glare_ct: Mapped[str] = mapped_column(String(50), nullable=False, default="image/png")
     glare2_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     glare2_ct: Mapped[str] = mapped_column(String(50), nullable=False, default="image/png")
+    # Auto-generated variants (12-10 रात): PNG से बना mask + card-size thumb — DB में हमेशा के लिए,
+    # ताकि हर cold start पर दोबारा generate करके free server ढ़ न हो (site slow complaint)
+    mask_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    thumb_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     # Generator frame (PNG के बिना): border colors/widths + windows (collage)
     draw: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     # product type: frame / acrylic / album — Template Maker एक engine, तीनों products (11-10)
