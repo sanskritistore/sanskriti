@@ -289,6 +289,7 @@ def _frame_dict(f: StoreFrame) -> dict:
         "window": json.loads(f.window),
         "img": f"/api/v1/store/frames/{f.id}/img" if (f.img_path or f.img_data) else "",
         "samp": f"/api/v1/store/frames/{f.id}/sample" if f.samp_data else "",
+        "mask": f"/api/v1/store/frames/{f.id}/mask" if (f.img_path or f.img_data) else "",
         "samp_pos": f.samp_pos or "",
         "glare_set": f.glare_set or "",
         "glare": f"/api/v1/store/frames/{f.id}/glare" if f.glare_data else "",
@@ -420,6 +421,120 @@ async def frame_sample(fid: int, db: AsyncSession = Depends(get_db)):
     if not f or not f.samp_data:
         raise SanskritiException(404, "sample photo नहीं मिली")
     return Response(content=bytes(f.samp_data), media_type=f.samp_ct or "image/webp")
+
+
+# --- PNG transparency → photo mask (12-10 शाम, Dev: "PNG का अंदरूनी हिस्सा अपने-आप photo area बने") ---
+# हर frame की heart/design अलग है — fixed shape dropdown कभी fit नहीं होता।
+# इसलिए PNG के अंदरूनी transparent हिस्से से ही mask बनता है: white = photo area, black = बाकी।
+# कोई भी shape चलेगी — heart, star, flower, multi-curve — कुछ hardcode नहीं।
+_MASK_CACHE: dict = {}  # fid -> (img_len, mask_bytes) — img बदलते ही नया mask
+
+
+def _frame_mask_png(data: bytes):
+    """PNG border के अंदरूनी transparent window का mask बनाओ (window bbox तक cropped)।
+    center से flood-fill — Frame Maker के autoWindow जैसा ही तरीका, server-side।
+    None = कोई अंदरूनी transparent हिस्सा नहीं (mask ज़रूरी नहीं)।"""
+    import io as _io
+
+    from PIL import Image
+    im = Image.open(_io.BytesIO(data)).convert("RGBA")
+    sc = min(1.0, 640 / max(im.size))
+    w = max(60, round(im.width * sc))
+    h = max(60, round(im.height * sc))
+    im = im.resize((w, h))
+    px = im.load()
+
+    def tr(x, y):
+        return px[x, y][3] < 16
+
+    cx, cy = w // 2, h // 2
+    if not tr(cx, cy):  # center opaque — पास से transparent शुरुआत ढूँढो (नोक वाली shapes)
+        found = None
+        r = 2
+        while r < min(w, h) // 3 and not found:
+            for dx in range(-r, r + 1, 3):
+                for dy in range(-r, r + 1, 3):
+                    x, y = cx + dx, cy + dy
+                    if 0 <= x < w and 0 <= y < h and tr(x, y):
+                        found = (x, y)
+                        break
+                if found:
+                    break
+            r += 3
+        if not found:
+            return None
+        cx, cy = found
+    seen = bytearray(w * h)
+    stack = [(cx, cy)]
+    seen[cy * w + cx] = 1
+    n = 0
+    x0, y0, x1, y1 = w, h, -1, -1
+    while stack:
+        x, y = stack.pop()
+        n += 1
+        if x < x0:
+            x0 = x
+        if x > x1:
+            x1 = x
+        if y < y0:
+            y0 = y
+        if y > y1:
+            y1 = y
+        if x > 0 and not seen[y * w + x - 1] and tr(x - 1, y):
+            seen[y * w + x - 1] = 1
+            stack.append((x - 1, y))
+        if x < w - 1 and not seen[y * w + x + 1] and tr(x + 1, y):
+            seen[y * w + x + 1] = 1
+            stack.append((x + 1, y))
+        if y > 0 and not seen[(y - 1) * w + x] and tr(x, y - 1):
+            seen[(y - 1) * w + x] = 1
+            stack.append((x, y - 1))
+        if y < h - 1 and not seen[(y + 1) * w + x] and tr(x, y + 1):
+            seen[(y + 1) * w + x] = 1
+            stack.append((x, y + 1))
+    if n < w * h * 0.005:  # बहुत छोटा हिस्सा — असली window नहीं
+        return None
+    # mask = window bbox तक crop — storefront photo div भी वही bbox होता है (100% fill = perfect fit)
+    # RGBA: CSS mask alpha channel देखता है — window = opaque white, बाकी = पूरी transparent
+    mk = Image.new("RGBA", (x1 - x0 + 1, y1 - y0 + 1), (0, 0, 0, 0))
+    mp = mk.load()
+    for yy in range(y0, y1 + 1):
+        base = yy * w
+        for xx in range(x0, x1 + 1):
+            if seen[base + xx]:
+                mp[xx - x0, yy - y0] = (255, 255, 255, 255)
+    buf = _io.BytesIO()
+    mk.save(buf, "PNG", optimize=True)
+    return buf.getvalue()
+
+
+@router.get("/frames/{fid}/mask")
+async def frame_mask(fid: int, db: AsyncSession = Depends(get_db)):
+    """PUBLIC: frame PNG के अंदरूनी transparent हिस्से का mask (photo इसी shape में कटेगी)।"""
+    f = (
+        await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
+    ).scalar_one_or_none()
+    if not f:
+        raise SanskritiException(404, "frame नहीं मिला")
+    data = bytes(f.img_data) if f.img_data else None
+    if data is None and f.img_path and Path(f.img_path).exists():
+        data = Path(f.img_path).read_bytes()
+    if not data:
+        raise SanskritiException(404, "frame image नहीं मिली")
+    hit = _MASK_CACHE.get(f.id)
+    if not hit or hit[0] != len(data):
+        m = _frame_mask_png(data)
+        if m is None:
+            raise SanskritiException(404, "इस PNG में अंदरूनी transparent window नहीं")
+        hit = (len(data), m)
+        if len(_MASK_CACHE) > 200:  # free RAM बचाओ — सबसे पुरानी entry हटाओ
+            _MASK_CACHE.pop(next(iter(_MASK_CACHE)))
+        _MASK_CACHE[f.id] = hit
+    return Response(
+        content=hit[1],
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @router.post("/frames/{fid}/sample")
