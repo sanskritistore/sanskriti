@@ -362,6 +362,8 @@ async def create_frame(
     img_file: UploadFile = File(None),
     sample_file: UploadFile = File(None),
     sample_settings: str = Form(""),
+    mask_file: UploadFile = File(None),
+    thumb_file: UploadFile = File(None),
     db: AsyncSession = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
@@ -422,7 +424,13 @@ async def create_frame(
         f.img_path = str(path)
         f.img_data = path.read_bytes()
         f.img_ct = img_file.content_type or "image/png"
-        await _regen_frame_variants(f, data)  # mask + thumb तुरंत तैयार — customer कभी generation का इंतज़ार न करे
+        # Client (Maker/browser) से बने variants पहले — server पर decode तभी जब client ने न भेजे हो
+        if mask_file is not None:
+            f.mask_data = await mask_file.read()
+        if thumb_file is not None:
+            f.thumb_data = await thumb_file.read()
+        if mask_file is None or thumb_file is None:
+            await _regen_frame_variants(f, data)  # missing variants server बनाए (2600px तक ही — OOM guard)
     elif not draw:
         raise SanskritiException(400, "PNG या draw — दोनों में से एक चाहिए")
     if sample_file is not None:
@@ -445,7 +453,10 @@ def _frame_thumb_webp(data: bytes, w: int):
     import io as _io
 
     from PIL import Image
-    im = Image.open(_io.BytesIO(data)).convert("RGBA")
+    im = Image.open(_io.BytesIO(data))
+    if max(im.size) > 2600:  # OOM guard (12-10 रात) — बड़ी PNG का thumb Maker (browser) से आता है
+        return None
+    im = im.convert("RGBA")
     if im.width > w:
         im = im.resize((w, max(1, round(im.height * w / im.width))), Image.LANCZOS)
     out = _io.BytesIO()
@@ -474,15 +485,22 @@ async def frame_image(fid: int, w: int = 0, db: AsyncSession = Depends(get_db)):
                     thumb = hit[1]
             if thumb is None:
                 thumb = await asyncio.to_thread(_frame_thumb_webp, data, w)
-                if w == 600:  # एक बार generate → DB में हमेशा के लिए
+                if thumb is not None and w == 600:  # एक बार generate → DB में हमेशा के लिए
                     f.thumb_data = thumb
                     try:
                         await db.commit()
                     except Exception:
                         pass
-                if len(_IMG_THUMB_CACHE) > 400:
-                    _IMG_THUMB_CACHE.pop(next(iter(_IMG_THUMB_CACHE)))
-                _IMG_THUMB_CACHE[(f.id, w)] = (len(data), thumb)
+                if thumb is not None:
+                    if len(_IMG_THUMB_CACHE) > 400:
+                        _IMG_THUMB_CACHE.pop(next(iter(_IMG_THUMB_CACHE)))
+                    _IMG_THUMB_CACHE[(f.id, w)] = (len(data), thumb)
+            if thumb is None:  # PNG बहुत बड़ी (OOM guard) — full PNG ही भेजो (काम चले, धीमा पर सही)
+                return Response(
+                    content=data,
+                    media_type=f.img_ct or "image/png",
+                    headers={"Cache-Control": "public, max-age=86400"},
+                )
             return Response(
                 content=thumb,
                 media_type="image/webp",
@@ -524,7 +542,12 @@ def _frame_mask_png(data: bytes):
     import io as _io
 
     from PIL import Image
-    im = Image.open(_io.BytesIO(data)).convert("RGBA")
+    im = Image.open(_io.BytesIO(data))
+    # OOM guard (12-10 रात): 5400px RGBA decode = 116MB+ — free server (512MB) मर जाता है।
+    # बड़ी PNG का mask Maker (browser) से आता है; server सिर्फ छोटी PNG के लिए fallback।
+    if max(im.size) > 2600:
+        return None
+    im = im.convert("RGBA")
     sc = min(1.0, 320 / max(im.size))
     w = max(60, round(im.width * sc))
     h = max(60, round(im.height * sc))
@@ -599,6 +622,34 @@ def _frame_mask_png(data: bytes):
     out = _io.BytesIO()
     mk.save(out, "PNG", optimize=True)
     return out.getvalue()
+
+
+@router.post("/frames/{fid}/variants")
+async def upload_frame_variants(
+    fid: int,
+    mask_file: UploadFile | None = File(None),
+    thumb_file: UploadFile | None = File(None),
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Admin: browser/Maker से बने mask + card thumb सीधे save करो (12-10 रात)।
+    भारी काम client-side — free server कभी 5400px PNG decode करके OOM न मरे।"""
+    f = (
+        await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
+    ).scalar_one_or_none()
+    if not f or f.tenant_id != tenant_id:
+        raise SanskritiException(404, "frame नहीं मिला")
+    saved = []
+    if mask_file is not None:
+        f.mask_data = await mask_file.read()
+        saved.append("mask")
+    if thumb_file is not None:
+        f.thumb_data = await thumb_file.read()
+        saved.append("thumb")
+    if not saved:
+        raise SanskritiException(400, "mask_file या thumb_file चाहिए")
+    await db.commit()
+    return {"ok": True, "saved": saved}
 
 
 async def _regen_frame_variants(f: StoreFrame, data: bytes) -> None:
@@ -685,6 +736,8 @@ async def update_frame_sample(
 async def update_frame_img(
     fid: int,
     img_file: UploadFile = File(...),
+    mask_file: UploadFile = File(None),
+    thumb_file: UploadFile = File(None),
     db: AsyncSession = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
@@ -703,7 +756,12 @@ async def update_frame_img(
     f.img_path = str(path)
     f.img_data = data
     f.img_ct = img_file.content_type or "image/png"
-    await _regen_frame_variants(f, data)  # mask + thumb तुरंत तैयार — customer कभी generation का इंतज़ार न करे
+    if mask_file is not None:
+        f.mask_data = await mask_file.read()
+    if thumb_file is not None:
+        f.thumb_data = await thumb_file.read()
+    if mask_file is None or thumb_file is None:
+        await _regen_frame_variants(f, data)  # missing variants server बनाए (2600px तक — OOM guard)
     await db.commit()
     return {"ok": True, "img": f"/api/v1/store/frames/{f.id}/img"}
 
