@@ -295,6 +295,7 @@ def _frame_dict(f: StoreFrame) -> dict:
         "glare2": f"/api/v1/store/frames/{f.id}/glare2" if f.glare2_data else "",
         "draw": json.loads(f.draw) if f.draw else None,
         "ptype": f.ptype,
+        "code": f.code or "",
     }
 
 
@@ -351,6 +352,17 @@ async def create_frame(
     db.add(f)
     await db.flush()
     f.frame_id = f"fr-c{f.id}"
+    # पहचान नंबर auto — S001, S002… (12-10 Dev: "naam likhenge, code automatic")
+    existing = (
+        await db.execute(
+            select(StoreFrame.code).where(StoreFrame.tenant_id == tenant_id)
+        )
+    ).scalars().all()
+    mx = 0
+    for c in existing:
+        if c and c.startswith("S") and c[1:].isdigit():
+            mx = max(mx, int(c[1:]))
+    f.code = f"S{mx + 1:03d}"
 
     if draw:
         try:
@@ -619,6 +631,26 @@ async def update_frame(
                                    "shape": str(w.get("shape", "rect"))})
         except Exception:
             raise SanskritiException(400, "window JSON खराब — {x,y,w,h}")
+    if "draw" in payload:
+        d = payload["draw"]
+        if d is None or d == "":
+            f.draw = ""
+        else:
+            try:
+                f.draw = json.dumps(d) if not isinstance(d, str) else (json.dumps(json.loads(d)))
+            except Exception:
+                raise SanskritiException(400, "draw JSON खराब है")
+    if "ptype" in payload:
+        p = str(payload["ptype"])
+        if p not in {"frame", "acrylic", "album"}:
+            raise SanskritiException(400, "ptype: frame/acrylic/album")
+        f.ptype = p
+    if "ar" in payload:
+        f.ar = str(payload["ar"])[:12]
+    if "code" in payload:  # manual सुधार चाहिए तो; normal flow में create पर auto लगता है
+        c = str(payload["code"]).strip().upper()[:12]
+        if c:
+            f.code = c
     await db.commit()
     return {"ok": True, "frame": _frame_dict(f)}
 
