@@ -70,6 +70,7 @@ async def startup():
         await conn.execute(text("ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS preview_data BYTEA"))
         await conn.execute(text("ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS mask_data BYTEA"))
         await conn.execute(text("ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS thumb_data BYTEA"))
+        await conn.execute(text("ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS display_data BYTEA"))
 
 
 @app.get("/health", tags=["health"])

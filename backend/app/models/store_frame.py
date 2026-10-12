@@ -54,6 +54,7 @@ class StoreFrame(Base, TenantMixin, TimestampMixin):
     # ताकि हर cold start पर दोबारा generate करके free server ढ़ न हो (site slow complaint)
     mask_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     thumb_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    display_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)  # 1600px webp — preview page (12-10 रात)
     # Generator frame (PNG के बिना): border colors/widths + windows (collage)
     draw: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     # product type: frame / acrylic / album — Template Maker एक engine, तीनों products (11-10)

@@ -364,6 +364,7 @@ async def create_frame(
     sample_settings: str = Form(""),
     mask_file: UploadFile = File(None),
     thumb_file: UploadFile = File(None),
+    display_file: UploadFile = File(None),
     db: AsyncSession = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
@@ -431,7 +432,9 @@ async def create_frame(
                 f.mask_data = None
         if thumb_file is not None:
             f.thumb_data = await thumb_file.read()
-        if f.mask_data is None or f.thumb_data is None:
+        if display_file is not None:
+            f.display_data = await display_file.read()
+        if f.mask_data is None or f.thumb_data is None or f.display_data is None:
             await _regen_frame_variants(f, data)  # missing/invalid variants server बनाए (2600px तक — OOM guard)
     elif not draw:
         raise SanskritiException(400, "PNG या draw — दोनों में से एक चाहिए")
@@ -480,6 +483,8 @@ async def frame_image(fid: int, w: int = 0, db: AsyncSession = Depends(get_db)):
             thumb = None
             if w == 600 and f.thumb_data:  # standard card size — DB से हमेशा तुरंत
                 thumb = bytes(f.thumb_data)
+            elif w == 1600 and f.display_data:  # preview page size — DB से (12-10 रात)
+                thumb = bytes(f.display_data)
             else:
                 key = (f.id, w)
                 hit = _IMG_THUMB_CACHE.get(key)
@@ -487,8 +492,11 @@ async def frame_image(fid: int, w: int = 0, db: AsyncSession = Depends(get_db)):
                     thumb = hit[1]
             if thumb is None:
                 thumb = await asyncio.to_thread(_frame_thumb_webp, data, w)
-                if thumb is not None and w == 600:  # एक बार generate → DB में हमेशा के लिए
-                    f.thumb_data = thumb
+                if thumb is not None and w in (600, 1600):  # एक बार generate → DB में हमेशा के लिए
+                    if w == 600:
+                        f.thumb_data = thumb
+                    else:
+                        f.display_data = thumb
                     try:
                         await db.commit()
                     except Exception:
@@ -631,6 +639,7 @@ async def upload_frame_variants(
     fid: int,
     mask_file: UploadFile | None = File(None),
     thumb_file: UploadFile | None = File(None),
+    display_file: UploadFile | None = File(None),
     db: AsyncSession = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
@@ -650,6 +659,9 @@ async def upload_frame_variants(
     if thumb_file is not None:
         f.thumb_data = await thumb_file.read()
         saved.append("thumb")
+    if display_file is not None:
+        f.display_data = await display_file.read()
+        saved.append("display")
     if not saved:
         raise SanskritiException(400, "mask_file या thumb_file चाहिए")
     await db.commit()
@@ -674,6 +686,10 @@ async def _regen_frame_variants(f: StoreFrame, data: bytes) -> None:
         f.thumb_data = await asyncio.to_thread(_frame_thumb_webp, data, 600)
     except Exception:
         f.thumb_data = None
+    try:
+        f.display_data = await asyncio.to_thread(_frame_thumb_webp, data, 1600)  # preview page
+    except Exception:
+        f.display_data = None
 
 
 @router.get("/frames/{fid}/mask")
@@ -748,6 +764,7 @@ async def update_frame_img(
     img_file: UploadFile = File(...),
     mask_file: UploadFile = File(None),
     thumb_file: UploadFile = File(None),
+    display_file: UploadFile = File(None),
     db: AsyncSession = Depends(get_db),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
@@ -772,7 +789,9 @@ async def update_frame_img(
             f.mask_data = None
     if thumb_file is not None:
         f.thumb_data = await thumb_file.read()
-    if f.mask_data is None or f.thumb_data is None:
+    if display_file is not None:
+        f.display_data = await display_file.read()
+    if f.mask_data is None or f.thumb_data is None or f.display_data is None:
         await _regen_frame_variants(f, data)  # missing/invalid variants server बनाए (2600px तक — OOM guard)
     await db.commit()
     return {"ok": True, "img": f"/api/v1/store/frames/{f.id}/img"}
