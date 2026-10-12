@@ -427,10 +427,12 @@ async def create_frame(
         # Client (Maker/browser) से बने variants पहले — server पर decode तभी जब client ने न भेजे हो
         if mask_file is not None:
             f.mask_data = await mask_file.read()
+            if not _valid_mask(f.mask_data):
+                f.mask_data = None
         if thumb_file is not None:
             f.thumb_data = await thumb_file.read()
-        if mask_file is None or thumb_file is None:
-            await _regen_frame_variants(f, data)  # missing variants server बनाए (2600px तक ही — OOM guard)
+        if f.mask_data is None or f.thumb_data is None:
+            await _regen_frame_variants(f, data)  # missing/invalid variants server बनाए (2600px तक — OOM guard)
     elif not draw:
         raise SanskritiException(400, "PNG या draw — दोनों में से एक चाहिए")
     if sample_file is not None:
@@ -642,6 +644,8 @@ async def upload_frame_variants(
     saved = []
     if mask_file is not None:
         f.mask_data = await mask_file.read()
+        if not _valid_mask(f.mask_data):
+            f.mask_data = None
         saved.append("mask")
     if thumb_file is not None:
         f.thumb_data = await thumb_file.read()
@@ -650,6 +654,12 @@ async def upload_frame_variants(
         raise SanskritiException(400, "mask_file या thumb_file चाहिए")
     await db.commit()
     return {"ok": True, "saved": saved}
+
+
+def _valid_mask(b: bytes | None) -> bool:
+    """असली PNG mask है? (12-10 रात: client bug से 19-byte कचरा mask save हुआ था —
+    photo गायब हो गई थी। अब टूटा mask = None मानो → server खुद सही बनाए।)"""
+    return bool(b) and len(b) >= 100 and b[:4] == b"\x89PNG"
 
 
 async def _regen_frame_variants(f: StoreFrame, data: bytes) -> None:
@@ -758,10 +768,12 @@ async def update_frame_img(
     f.img_ct = img_file.content_type or "image/png"
     if mask_file is not None:
         f.mask_data = await mask_file.read()
+        if not _valid_mask(f.mask_data):
+            f.mask_data = None
     if thumb_file is not None:
         f.thumb_data = await thumb_file.read()
-    if mask_file is None or thumb_file is None:
-        await _regen_frame_variants(f, data)  # missing variants server बनाए (2600px तक — OOM guard)
+    if f.mask_data is None or f.thumb_data is None:
+        await _regen_frame_variants(f, data)  # missing/invalid variants server बनाए (2600px तक — OOM guard)
     await db.commit()
     return {"ok": True, "img": f"/api/v1/store/frames/{f.id}/img"}
 
