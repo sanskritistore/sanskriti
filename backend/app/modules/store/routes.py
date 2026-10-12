@@ -352,17 +352,20 @@ async def create_frame(
     db.add(f)
     await db.flush()
     f.frame_id = f"fr-c{f.id}"
-    # पहचान नंबर auto — S001, S002… (12-10 Dev: "naam likhenge, code automatic")
+    # पहचान नंबर auto — सबसे छोटा खाली नंबर (12-10 Dev: delete हुए frame का code नए frame को मिले)
     existing = (
         await db.execute(
             select(StoreFrame.code).where(StoreFrame.tenant_id == tenant_id)
         )
     ).scalars().all()
-    mx = 0
+    used = set()
     for c in existing:
         if c and c.startswith("S") and c[1:].isdigit():
-            mx = max(mx, int(c[1:]))
-    f.code = f"S{mx + 1:03d}"
+            used.add(int(c[1:]))
+    n = 1
+    while n in used:
+        n += 1
+    f.code = f"S{n:03d}"
 
     if draw:
         try:
