@@ -427,6 +427,8 @@ async def frame_sample(fid: int, db: AsyncSession = Depends(get_db)):
 # हर frame की heart/design अलग है — fixed shape dropdown कभी fit नहीं होता।
 # इसलिए PNG के अंदरूनी transparent हिस्से से ही mask बनता है: white = photo area, black = बाकी।
 # कोई भी shape चलेगी — heart, star, flower, multi-curve — कुछ hardcode नहीं।
+# SPEED (12-10 रात, Dev: "site slow ho gai"): 320px + bytes-based alpha + to_thread —
+# free server पर event loop कभी block न हो, हर mask ~100ms में।
 _MASK_CACHE: dict = {}  # fid -> (img_len, mask_bytes) — img बदलते ही नया mask
 
 
@@ -438,40 +440,43 @@ def _frame_mask_png(data: bytes):
 
     from PIL import Image
     im = Image.open(_io.BytesIO(data)).convert("RGBA")
-    sc = min(1.0, 640 / max(im.size))
+    sc = min(1.0, 320 / max(im.size))
     w = max(60, round(im.width * sc))
     h = max(60, round(im.height * sc))
-    im = im.resize((w, h))
-    px = im.load()
+    alpha = im.resize((w, h)).getchannel("A").tobytes()  # bytes indexing — px[x,y] से कई गुना तेज़
+    wh = w * h
 
-    def tr(x, y):
-        return px[x, y][3] < 16
+    def tr(p):
+        return alpha[p] < 16
 
-    cx, cy = w // 2, h // 2
-    if not tr(cx, cy):  # center opaque — पास से transparent शुरुआत ढूँढो (नोक वाली shapes)
-        found = None
+    c0 = (h // 2) * w + (w // 2)
+    if not tr(c0):  # center opaque — पास से transparent शुरुआत ढूँढो (नोक वाली shapes)
+        found = -1
+        cx, cy = w // 2, h // 2
         r = 2
-        while r < min(w, h) // 3 and not found:
+        while r < min(w, h) // 3 and found < 0:
             for dx in range(-r, r + 1, 3):
                 for dy in range(-r, r + 1, 3):
                     x, y = cx + dx, cy + dy
-                    if 0 <= x < w and 0 <= y < h and tr(x, y):
-                        found = (x, y)
+                    if 0 <= x < w and 0 <= y < h and tr(y * w + x):
+                        found = y * w + x
                         break
-                if found:
+                if found >= 0:
                     break
             r += 3
-        if not found:
+        if found < 0:
             return None
-        cx, cy = found
-    seen = bytearray(w * h)
-    stack = [(cx, cy)]
-    seen[cy * w + cx] = 1
+        c0 = found
+    seen = bytearray(wh)
+    stack = [c0]
+    seen[c0] = 1
     n = 0
     x0, y0, x1, y1 = w, h, -1, -1
     while stack:
-        x, y = stack.pop()
+        p = stack.pop()
         n += 1
+        x = p % w
+        y = p // w
         if x < x0:
             x0 = x
         if x > x1:
@@ -480,37 +485,42 @@ def _frame_mask_png(data: bytes):
             y0 = y
         if y > y1:
             y1 = y
-        if x > 0 and not seen[y * w + x - 1] and tr(x - 1, y):
-            seen[y * w + x - 1] = 1
-            stack.append((x - 1, y))
-        if x < w - 1 and not seen[y * w + x + 1] and tr(x + 1, y):
-            seen[y * w + x + 1] = 1
-            stack.append((x + 1, y))
-        if y > 0 and not seen[(y - 1) * w + x] and tr(x, y - 1):
-            seen[(y - 1) * w + x] = 1
-            stack.append((x, y - 1))
-        if y < h - 1 and not seen[(y + 1) * w + x] and tr(x, y + 1):
-            seen[(y + 1) * w + x] = 1
-            stack.append((x, y + 1))
-    if n < w * h * 0.005:  # बहुत छोटा हिस्सा — असली window नहीं
+        if x > 0 and not seen[p - 1] and tr(p - 1):
+            seen[p - 1] = 1
+            stack.append(p - 1)
+        if x < w - 1 and not seen[p + 1] and tr(p + 1):
+            seen[p + 1] = 1
+            stack.append(p + 1)
+        if y > 0 and not seen[p - w] and tr(p - w):
+            seen[p - w] = 1
+            stack.append(p - w)
+        if y < h - 1 and not seen[p + w] and tr(p + w):
+            seen[p + w] = 1
+            stack.append(p + w)
+    if n < wh * 0.005:  # बहुत छोटा हिस्सा — असली window नहीं
         return None
     # mask = window bbox तक crop — storefront photo div भी वही bbox होता है (100% fill = perfect fit)
     # RGBA: CSS mask alpha channel देखता है — window = opaque white, बाकी = पूरी transparent
-    mk = Image.new("RGBA", (x1 - x0 + 1, y1 - y0 + 1), (0, 0, 0, 0))
-    mp = mk.load()
+    mw, mh = x1 - x0 + 1, y1 - y0 + 1
+    buf = bytearray(mw * mh * 4)
     for yy in range(y0, y1 + 1):
         base = yy * w
+        ob = (yy - y0) * mw * 4
         for xx in range(x0, x1 + 1):
             if seen[base + xx]:
-                mp[xx - x0, yy - y0] = (255, 255, 255, 255)
-    buf = _io.BytesIO()
-    mk.save(buf, "PNG", optimize=True)
-    return buf.getvalue()
+                o = ob + (xx - x0) * 4
+                buf[o] = buf[o + 1] = buf[o + 2] = buf[o + 3] = 255
+    mk = Image.frombytes("RGBA", (mw, mh), bytes(buf))
+    out = _io.BytesIO()
+    mk.save(out, "PNG", optimize=True)
+    return out.getvalue()
 
 
 @router.get("/frames/{fid}/mask")
 async def frame_mask(fid: int, db: AsyncSession = Depends(get_db)):
     """PUBLIC: frame PNG के अंदरूनी transparent हिस्से का mask (photo इसी shape में कटेगी)।"""
+    import asyncio
+
     f = (
         await db.execute(select(StoreFrame).where(StoreFrame.id == fid))
     ).scalar_one_or_none()
@@ -523,7 +533,8 @@ async def frame_mask(fid: int, db: AsyncSession = Depends(get_db)):
         raise SanskritiException(404, "frame image नहीं मिली")
     hit = _MASK_CACHE.get(f.id)
     if not hit or hit[0] != len(data):
-        m = _frame_mask_png(data)
+        # CPU काम अलग thread में — free server पर बाकी requests (site) कभी अटकें नहीं
+        m = await asyncio.to_thread(_frame_mask_png, data)
         if m is None:
             raise SanskritiException(404, "इस PNG में अंदरूनी transparent window नहीं")
         hit = (len(data), m)
@@ -533,7 +544,7 @@ async def frame_mask(fid: int, db: AsyncSession = Depends(get_db)):
     return Response(
         content=hit[1],
         media_type="image/png",
-        headers={"Cache-Control": "public, max-age=3600"},
+        headers={"Cache-Control": "public, max-age=86400"},  # browser एक दिन cache रखे — बार-बार server बोझ नहीं
     )
 
 
