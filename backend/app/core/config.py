@@ -22,8 +22,8 @@ class Settings(BaseSettings):
 
     # डेटाबेस (PostgreSQL - async)
     DATABASE_URL: str = "postgresql+asyncpg://sanskriti:sanskriti@localhost:5432/sanskriti"
-    DB_POOL_SIZE: int = 10
-    DB_MAX_OVERFLOW: int = 20
+    DB_POOL_SIZE: int = 2
+    DB_MAX_OVERFLOW: int = 3
 
     # Redis (कैश + Celery ब्रोकर)
     REDIS_URL: str = "redis://localhost:6379/0"
