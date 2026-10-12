@@ -26,7 +26,7 @@ from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import deferred
+from sqlalchemy.orm import defer
 
 from app.api.deps import get_current_tenant_id
 from app.core.config import settings
@@ -315,12 +315,12 @@ def _frame_dict(
 
 # भारी binary columns — list endpoint इन्हें load नहीं करता (45 frames × 1-2MB = RAM खत्म, 12-10 रात)
 _FRAME_HEAVY = (
-    deferred(StoreFrame.img_data),
-    deferred(StoreFrame.samp_data),
-    deferred(StoreFrame.glare_data),
-    deferred(StoreFrame.glare2_data),
-    deferred(StoreFrame.mask_data),
-    deferred(StoreFrame.thumb_data),
+    defer(StoreFrame.img_data),
+    defer(StoreFrame.samp_data),
+    defer(StoreFrame.glare_data),
+    defer(StoreFrame.glare2_data),
+    defer(StoreFrame.mask_data),
+    defer(StoreFrame.thumb_data),
 )
 
 
