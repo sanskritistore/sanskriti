@@ -281,6 +281,7 @@ def _frame_dict(
     samp_len: int | None = None,
     glare_len: int | None = None,
     glare2_len: int | None = None,
+    mask_len: int | None = None,
 ) -> dict:
     """Store frontend को चाहिए fields (config frames.json जैसी shape)।
     list endpoint lengths पास करता है (octet_length — भारी bytes load किए बिना पता चलता है)।"""
@@ -302,7 +303,9 @@ def _frame_dict(
         "window": json.loads(f.window),
         "img": f"/api/v1/store/frames/{f.id}/img" if has_img else "",
         "samp": f"/api/v1/store/frames/{f.id}/sample" if has_samp else "",
-        "mask": f"/api/v1/store/frames/{f.id}/mask" if has_img else "",
+        # ?v=mask_len — mask बदलते ही URL बदल जाए → browser पुराना cached mask कभी न दिखाए
+        # (12-10 रात bug: टूटा 19B mask 24h cache हो गया था, server ठीक होने के बाद भी photo गायब रही)
+        "mask": f"/api/v1/store/frames/{f.id}/mask?v={mask_len or 0}" if has_img else "",
         "samp_pos": f.samp_pos or "",
         "glare_set": f.glare_set or "",
         "glare": f"/api/v1/store/frames/{f.id}/glare" if has_glare else "",
@@ -336,6 +339,7 @@ async def list_custom_frames(db: AsyncSession = Depends(get_db)):
                 func.octet_length(StoreFrame.samp_data).label("samp_len"),
                 func.octet_length(StoreFrame.glare_data).label("glare_len"),
                 func.octet_length(StoreFrame.glare2_data).label("glare2_len"),
+                func.octet_length(StoreFrame.mask_data).label("mask_len"),
             )
             .options(*_FRAME_HEAVY)
             .where(StoreFrame.active == True)  # noqa: E712
@@ -343,8 +347,8 @@ async def list_custom_frames(db: AsyncSession = Depends(get_db)):
         )
     ).all()
     return [
-        _frame_dict(f, img_len=il or 0, samp_len=sl or 0, glare_len=gl or 0, glare2_len=g2 or 0)
-        for f, il, sl, gl, g2 in rows
+        _frame_dict(f, img_len=il or 0, samp_len=sl or 0, glare_len=gl or 0, glare2_len=g2 or 0, mask_len=ml or 0)
+        for f, il, sl, gl, g2, ml in rows
     ]
 
 
@@ -446,7 +450,7 @@ async def create_frame(
         f.samp_ct = sample_file.content_type or "image/webp"
 
     await db.commit()
-    return {"ok": True, "frame": _frame_dict(f)}
+    return {"ok": True, "frame": _frame_dict(f, mask_len=len(f.mask_data) if f.mask_data else 0)}
 
 
 # Downscaled card-size frame imgs — 12-10 रात: cards को 5400px PNG नहीं, 600px webp चाहिए (20x हल्का)
@@ -975,7 +979,7 @@ async def update_frame(
         if c:
             f.code = c
     await db.commit()
-    return {"ok": True, "frame": _frame_dict(f)}
+    return {"ok": True, "frame": _frame_dict(f, mask_len=len(f.mask_data) if f.mask_data else 0)}
 
 
 @router.delete("/frames/{fid}")
