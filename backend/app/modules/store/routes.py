@@ -355,7 +355,10 @@ async def create_frame(
     # पहचान नंबर auto — सबसे छोटा खाली नंबर (12-10 Dev: delete हुए frame का code नए frame को मिले)
     existing = (
         await db.execute(
-            select(StoreFrame.code).where(StoreFrame.tenant_id == tenant_id)
+            select(StoreFrame.code).where(
+                StoreFrame.tenant_id == tenant_id,
+                StoreFrame.active == True,  # noqa: E712 — delete हुए (soft-off) frames के code छूट जाते हैं
+            )
         )
     ).scalars().all()
     used = set()
