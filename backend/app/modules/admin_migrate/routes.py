@@ -129,8 +129,12 @@ async def run(
         )
 
     # 3) हर table की rows copy करें
+    #    ⚠️ sorted_tables ज़रूरी है — यह foreign key के क्रम में देता है
+    #    (parents पहले)। पहली कोशिश में alphabetical क्रम लगा था, इसलिए
+    #    ad_creatives → campaigns → wallet_transactions FK पर fail हुए।
     async with engine.connect() as src_conn, target.connect() as dst_conn:
-        for name, table in src_meta.tables.items():
+        for table in src_meta.sorted_tables:
+            name = table.name
             entry = {"table": name, "rows": 0, "bytes": 0}
             try:
                 rows = (await src_conn.execute(select(table))).mappings().all()
@@ -145,13 +149,15 @@ async def run(
                 await dst_conn.commit()
             except Exception as exc:
                 await dst_conn.rollback()
-                entry["error"] = f"{type(exc).__name__}: {exc}"
+                detail = str(exc).split("[SQL:")[0].strip()
+                entry["error"] = f"{type(exc).__name__}: {detail}"[:300]
                 report["errors"].append(f"{name}: {entry['error']}")
             report["tables"].append(entry)
 
         # 4) sequences ठीक करें — वरना नया row डालते समय duplicate key error
         seqs = []
-        for name, table in src_meta.tables.items():
+        for table in src_meta.sorted_tables:
+            name = table.name
             for col in table.primary_key.columns:
                 try:
                     seq = await dst_conn.scalar(
