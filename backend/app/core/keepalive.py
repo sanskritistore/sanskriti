@@ -98,7 +98,10 @@ async def _loop() -> None:
                         resp = await client.get(url)
                     if resp.status_code == 200:
                         ok += 1
-                        if ok % 12 == 1:
+                        # ⚠️ 8 Nov 2026: पहले हर 12वें ping पर ही लॉग आता था, इसलिए
+                        # घंटे-भर के health-check में कुछ नहीं दिखता था। अब हर 6वें
+                        # (यानी लगभग हर घंटे) — ताकि जाँच में हमेशा ताज़ा सबूत मिले।
+                        if ok % 6 == 1:
                             logger.info("keepalive: ठीक है (ok=%d fail=%d)", ok, fail)
                     else:
                         fail += 1
