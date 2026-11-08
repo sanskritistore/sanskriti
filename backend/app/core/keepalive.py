@@ -26,7 +26,16 @@ import logging
 import os
 from datetime import datetime, timezone
 
-logger = logging.getLogger(__name__)
+# ⚠️ 8 Nov 2026: सादा getLogger(__name__) से Render के logs में कुछ नहीं दिखा
+# (root logger का level WARNING था, इसलिए INFO lines गिर जाती थीं)।
+# इसलिए अपना handler लगाकर propagate बंद कर दिया — logs में साफ़ दिखेगा।
+logger = logging.getLogger("sanskriti.keepalive")
+if not logger.handlers:
+    _h = logging.StreamHandler()
+    _h.setFormatter(logging.Formatter("%(levelname)s:     keepalive: %(message)s"))
+    logger.addHandler(_h)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
 
 _task: asyncio.Task | None = None
 
