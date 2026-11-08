@@ -76,6 +76,13 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: str = ""
     UPI_VPA: str = ""  # जैसे sanskriti@upi
 
+    # Keep-alive (स्वयं-जागरण) — Render free plan 15 मिनट idle पर बंद कर देता है।
+    # ऐप खुद को public URL पर call करके जगाए रखती है। पूरी कहानी: app/core/keepalive.py
+    KEEPALIVE_ENABLED: bool = True
+    KEEPALIVE_INTERVAL_MINUTES: int = 10  # 15 मिनट की idle limit से कम होना चाहिए
+    KEEPALIVE_HOURS_UTC: str = "3-17"  # दुकान का समय 8:30am-11:30pm IST = 03:00-17:59 UTC
+    KEEPALIVE_URL: str = ""  # खाली → RENDER_EXTERNAL_URL + /health अपने-आप
+
     # i18n - समर्थित भाषाएँ
     SUPPORTED_LANGUAGES: List[str] = ["hi", "en", "mr", "gu", "bn", "ta", "te"]
 

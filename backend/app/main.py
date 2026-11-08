@@ -73,6 +73,11 @@ async def startup():
         await conn.execute(text("ALTER TABLE store_frames ADD COLUMN IF NOT EXISTS display_data BYTEA"))
 
 
+    # Keep-alive चालू करें (Render free plan idle spin-down का इलाज)
+    from app.core.keepalive import start_keepalive
+    start_keepalive()
+
+
 @app.get("/health", tags=["health"])
 async def health_check():
     """हेल्थ चेक एंडपॉइंट।"""
