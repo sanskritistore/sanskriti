@@ -47,6 +47,9 @@ export default function AdsPage() {
   // 🎠 A (10-10): चुने product की album photos की गिनती — hint दिखाने के लिए
   const [albumPhotoCount, setAlbumPhotoCount] = useState(0);
   const [budget, setBudget] = useState(null);
+  // 🎯 ad का मक़सद — "whatsapp" (सबसे सस्ता message) | "awareness" (ज़्यादा लोग देखें)
+  // Meta इसी से तय करता है कि किन लोगों को दिखाना है। डिफ़ॉल्ट WhatsApp।
+  const [objective, setObjective] = useState("whatsapp");
   const [geoType, setGeoType] = useState("city"); // city | place | list
   // 📞 ग्राहक-सूची targeting (09-10 user idea): सेव किए phone numbers वालों को ad
   const [audiences, setAudiences] = useState([]);
@@ -288,7 +291,8 @@ export default function AdsPage() {
       setPhase(t("ads.launching"));
       const campaign = await api.campaigns.create({
         name: `${selectedProduct.name} - विज्ञापन`,
-        objective: "awareness",
+        // 🎯 उद्देश्य user ने चुना है (Step 2) — WhatsApp = सस्ते message
+        objective,
         ad_creative_id: creative.id,
         budget_total: budget * DAYS,
         budget_daily: budget,
@@ -368,6 +372,7 @@ export default function AdsPage() {
     setSelectedProduct(null);
     setAlbumPhotoCount(0);
     setBudget(null);
+    setObjective("whatsapp"); // हर नई ad का डिफ़ॉल्ट = सस्ते WhatsApp message
     setGeoType("city");
     setAudienceId(null);
     setAudienceName("");
@@ -522,6 +527,49 @@ export default function AdsPage() {
               <p className="text-center text-sm text-gray-500">
                 {t("ads.budgetHint")} · {t("ads.days5")}
               </p>
+
+              {/* 🎯 ad का मक़सद — Meta इसी से तय करता है किन लोगों को दिखाना है */}
+              <p className="pt-1 font-semibold text-gray-700">{t("ads.goalQ")}</p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => setObjective("whatsapp")}
+                  className={`card w-full text-left transition-colors ${
+                    objective === "whatsapp" ? "ring-2 ring-brand-500" : ""
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">💬</span>
+                    <div className="flex-1">
+                      <p className="font-semibold">
+                        {t("ads.goalWa")}{" "}
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700">
+                          ⭐ {t("ads.goalBest")}
+                        </span>
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {t("ads.goalWaSub")}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setObjective("awareness")}
+                  className={`card w-full text-left transition-colors ${
+                    objective === "awareness" ? "ring-2 ring-brand-500" : ""
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">👀</span>
+                    <div className="flex-1">
+                      <p className="font-semibold">{t("ads.goalAwareness")}</p>
+                      <p className="text-xs text-gray-500">
+                        {t("ads.goalAwarenessSub")}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
               <div className="flex gap-2">
                 <button
                   className="btn-secondary flex-1"
