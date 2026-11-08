@@ -27,7 +27,9 @@ class CampaignCreate(BaseModel):
     """नई कैंपेन बनाने की स्कीमा।"""
 
     name: str
-    objective: str = "leads"  # leads | traffic | awareness | sales
+    # उद्देश्य: whatsapp (सबसे सस्ता message) | leads | traffic | awareness | sales
+    # डिफ़ॉल्ट "awareness" — पुराना व्यवहार जस का तस (Settings Isolation)
+    objective: str = "awareness"
     ad_creative_id: int
     budget_total: float
     budget_daily: float

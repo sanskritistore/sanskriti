@@ -20,11 +20,44 @@ from app.modules.adapters.base import BasePlatformAdapter, CampaignConfig
 
 # Meta उद्देश्य मानचित्रण - हमारे उद्देश्य → Meta के उद्देश्य
 OBJECTIVE_MAP = {
-    "leads": "LEAD_GENERATION",     # WhatsApp लीड या फॉर्म लीड
-    "traffic": "OUTCOME_TRAFFIC",   # वेबसाइट ट्रैफ़िक
-    "awareness": "OUTCOME_AWARENESS",  # ब्रांड जागरूकता
-    "sales": "OUTCOME_SALES",       # बिक्री/कन्वर्ज़न
+    "whatsapp": "OUTCOME_ENGAGEMENT",   # 💬 WhatsApp पर बातचीत — सबसे सस्ता message
+    "leads": "OUTCOME_LEADS",           # WhatsApp लीड या फॉर्म लीड
+    "traffic": "OUTCOME_TRAFFIC",       # वेबसाइट ट्रैफ़िक
+    "awareness": "OUTCOME_AWARENESS",   # ब्रांड जागरूकता (पुराना व्यवहार)
+    "sales": "OUTCOME_SALES",           # बिक्री/कन्वर्ज़न
 }
+
+# उद्देश्य → Ad Set की सेटिंग (Meta के 2026 नियम)
+#   optimization_goal = Meta किन लोगों को ढूँढे
+#   destination_type  = ad का बटन कहाँ खुले
+# ⚠️ Meta का अनिवार्य नियम: WhatsApp वाले उद्देश्यों में
+#    destination_type="WHATSAPP" + optimization_goal="CONVERSATIONS" होना चाहिए।
+#    वरना Meta ad को "brand awareness" मानकर सस्ती impressions ढूँढता है
+#    (message महँगा पड़ता है — असली कमी यही थी)।
+ADSET_PLAN = {
+    "whatsapp": {"optimization_goal": "CONVERSATIONS", "destination_type": "WHATSAPP"},
+    "leads": {"optimization_goal": "CONVERSATIONS", "destination_type": "WHATSAPP"},
+    "traffic": {"optimization_goal": "LINK_CLICKS", "destination_type": None},
+    "awareness": {"optimization_goal": "REACH", "destination_type": None},
+    "sales": {"optimization_goal": "OFFSITE_CONVERSIONS", "destination_type": None},
+}
+
+
+def adset_plan(objective: str | None) -> dict:
+    """उद्देश्य से Ad Set की सेटिंग निकालें।
+
+    न मिले तो जागरूकता (awareness) — यानी पुराना व्यवहार ही चलेगा,
+    किसी भी पुराने उद्देश्य का असर नहीं बदलेगा (Settings Isolation)।
+    """
+    return ADSET_PLAN.get((objective or "").strip().lower(), ADSET_PLAN["awareness"])
+
+
+def _cta_value(link: str, cta_type: str) -> dict:
+    """बटन का मान — WhatsApp बटन में app_destination अनिवार्य है (CTWA नियम)।"""
+    value: dict = {"link": link}
+    if cta_type == "WHATSAPP_MESSAGE":
+        value["app_destination"] = "WHATSAPP"
+    return value
 
 
 class MetaAdapter(BasePlatformAdapter):
@@ -215,6 +248,7 @@ class MetaAdapter(BasePlatformAdapter):
         custom_audience_ids: list[str] | None = None,
         optimization_goal: str = "REACH",
         billing_event: str = "IMPRESSIONS",
+        destination_type: str | None = None,
     ) -> str:
         """
         Ad Set बनाएँ — दर्शक (शहर/उम्र) + रोज़ का बजट।
@@ -225,6 +259,9 @@ class MetaAdapter(BasePlatformAdapter):
         targeting (जैसे किसी coaching institute के 1 km घेरे में)।
         custom_audience_ids: ग्राहक-सूची (phone numbers) वालों को दिखाएँ —
         यह चुनी हो तो geo targeting नहीं लगती (सूची ही दर्शक है)।
+        destination_type: "WHATSAPP" — WhatsApp वाले उद्देश्यों के लिए
+        अनिवार्य (Meta 2026 नियम)। न दें तो फ़ील्ड भेजी ही नहीं जाती,
+        इसलिए पुराना awareness व्यवहार जस का तस रहता है।
         """
         if custom_audience_ids:
             # ग्राहक सूची = पूरा दर्शक — शहर/जगह की geo बाध्यता नहीं
@@ -269,6 +306,10 @@ class MetaAdapter(BasePlatformAdapter):
             "status": "PAUSED",
             "is_adset_budget_sharing_enabled": False,
         }
+        if destination_type:
+            # WhatsApp/Instagram Direct जैसे गंतव्य — Meta इसे देखकर
+            # "बातचीत करने वाले" लोगों को ढूँढता है, सिर्फ़ देखने वाले नहीं
+            payload["destination_type"] = destination_type
         response = await self._request(
             "POST", f"act_{self.ad_account_id}/adsets", json=payload
         )
@@ -297,7 +338,7 @@ class MetaAdapter(BasePlatformAdapter):
                 "name": headline,
                 "call_to_action": {
                     "type": cta_type,
-                    "value": {"link": link},
+                    "value": _cta_value(link, cta_type),
                 },
             },
         }
@@ -331,7 +372,7 @@ class MetaAdapter(BasePlatformAdapter):
                 "link": link,
                 "call_to_action": {
                     "type": "WHATSAPP_MESSAGE",
-                    "value": {"link": link},
+                    "value": _cta_value(link, "WHATSAPP_MESSAGE"),
                 },
             }
             child_attachments.append(attachment)

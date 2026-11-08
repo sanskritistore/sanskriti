@@ -21,6 +21,7 @@ from app.models.campaign import Campaign, PlatformCampaign
 from app.models.payment import WalletTransaction
 from app.modules.adapters import get_adapter
 from app.modules.adapters.base import CampaignConfig
+from app.modules.adapters.meta_adapter import adset_plan
 
 
 async def get_campaign(db: AsyncSession, tenant_id: int, campaign_id: int) -> Campaign:
@@ -164,6 +165,9 @@ async def launch_campaign(
                 custom_locations = found
             elif places:
                 logger.warning("कोई जगह नहीं मिली — शहर targeting पर लौटे")
+        # 🎯 उद्देश्य के अनुसार Meta की सेटिंग (WhatsApp → CONVERSATIONS+WHATSAPP)
+        # पुराने "awareness" उद्देश्य पर यह वही REACH देता है — कुछ नहीं बदलता।
+        plan = adset_plan(campaign.objective)
         adset_id = await adapter.create_ad_set(
             platform_campaign_id,
             f"{campaign.name} - दर्शक",
@@ -173,6 +177,8 @@ async def launch_campaign(
             age_max=int(targeting.get("age_max", 65)),
             custom_locations=custom_locations,
             custom_audience_ids=[audience_id] if audience_id else None,
+            optimization_goal=plan["optimization_goal"],
+            destination_type=plan["destination_type"],
         )
 
         # Creative: हिंदी text + WhatsApp बटन
