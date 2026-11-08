@@ -25,6 +25,8 @@ from app.modules.whatsapp.routes import router as whatsapp_router
 from app.modules.audiences.routes import router as audiences_router
 from app.modules.shop.routes import router as shop_router
 from app.modules.store.routes import router as store_router
+# 🚚 अस्थायी — Render DB → Neon DB migration (काम पूरा होने पर हटेगा)
+from app.modules.admin_migrate.routes import router as admin_migrate_router
 
 api_router = APIRouter()
 
@@ -49,3 +51,7 @@ api_router.include_router(audiences_router, prefix="/audiences", tags=["audience
 api_router.include_router(shop_router, prefix="/shop", tags=["shop"])
 # 🖨️ स्टोर ऑर्डर pipeline (11-10) — public order create + admin queue
 api_router.include_router(store_router, prefix="/store", tags=["store"])
+# 🚚 अस्थायी migration routes (token से सुरक्षित)
+api_router.include_router(
+    admin_migrate_router, prefix="/admin/migrate", tags=["admin-migrate"]
+)
