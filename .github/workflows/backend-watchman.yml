@@ -13,14 +13,19 @@ on:
   schedule:
     # IST = UTC + 5:30 → दुकान का समय 8:30am–11:30pm IST = 03:00–17:59 UTC
     - cron: "*/10 3-17 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      health_url:
+        description: "जाँचने का URL (सिर्फ़ टेस्ट के लिए बदलें — खाली छोड़ें तो असली URL)"
+        required: false
+        default: "" 
 
 permissions:
   contents: read
   issues: write
 
 env:
-  HEALTH_URL: https://sanskriti-backend-k4wv.onrender.com/health
+  HEALTH_URL: ${{ github.event.inputs.health_url || 'https://sanskriti-backend-k4wv.onrender.com/health' }}
   SERVICE_ID: srv-db300pvlk1mc738vdf8g
 
 jobs:
