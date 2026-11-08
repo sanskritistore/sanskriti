@@ -1,0 +1,114 @@
+name: Backend Watchman (सृकृति)
+
+# उद्देश्य (8 Nov 2026 को पता चला):
+# Render का free plan 15 मिनट कोई काम न हो तो backend बंद कर देता है,
+# और कभी-कभी वापस शुरू ही नहीं होता — कोई error भी नहीं दिखता।
+# यह workflow दुकान के समय backend को जगाए रखता है और बंद मिले तो
+# अपने-आप restart कर देता है, वरना GitHub issue खोलकर alert करता है।
+#
+# ⚠️ रात में जान-बूझकर बंद रहने देते हैं: Render free = 750 instance-hours/महीना,
+#    महीने में 744 घंटे होते हैं — 24x7 चलाना limit के बहुत पास चला जाएगा।
+
+on:
+  schedule:
+    # IST = UTC + 5:30 → दुकान का समय 8:30am–11:30pm IST = 03:00–17:59 UTC
+    - cron: "*/10 3-17 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  HEALTH_URL: https://sanskriti-backend-k4wv.onrender.com/health
+  SERVICE_ID: srv-db300pvlk1mc738vdf8g
+
+jobs:
+  watchman:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Backend ज़िंदा है या नहीं
+        id: health
+        run: |
+          ok=false
+          for i in 1 2 3; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$HEALTH_URL" || echo 000)
+            echo "प्रयास $i → HTTP $code"
+            if [ "$code" = "200" ]; then ok=true; break; fi
+            sleep 15
+          done
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+          [ "$ok" = "true" ] && echo "✅ backend ठीक है" || echo "🔴 backend बंद है"
+
+      - name: Restart करो और फिर जाँचो
+        id: restart
+        if: steps.health.outputs.ok == 'false'
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          echo "restarted=false" >> "$GITHUB_OUTPUT"
+          if [ -z "${RENDER_API_KEY:-}" ]; then
+            echo "⚠️ RENDER_API_KEY secret सेट नहीं है — restart नहीं हो सकता"
+            exit 0
+          fi
+          resp=$(curl -s -X POST \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" -H "Accept: application/json" \
+            -d '{"clearCache":"do_not_clear"}' \
+            "https://api.render.com/v1/services/$SERVICE_ID/deploys")
+          dep=$(printf '%s' "$resp" | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true)
+          if [ -z "$dep" ]; then
+            echo "⚠️ deploy शुरू नहीं हो सका: $(printf '%s' "$resp" | head -c 200)"
+            exit 0
+          fi
+          echo "deploy: $dep"
+          for i in $(seq 1 40); do
+            st=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" -H "Accept: application/json" \
+              "https://api.render.com/v1/services/$SERVICE_ID/deploys/$dep" \
+              | python3 -c "import sys,json;print(json.load(sys.stdin).get('status',''))" 2>/dev/null || true)
+            echo "  [$i] $st"
+            case "$st" in live|build_failed|update_failed|canceled) break;; esac
+            sleep 10
+          done
+          for i in $(seq 1 6); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$HEALTH_URL" || echo 000)
+            echo "जाँच $i → HTTP $code"
+            if [ "$code" = "200" ]; then echo "restarted=true" >> "$GITHUB_OUTPUT"; break; fi
+            sleep 15
+          done
+
+      - name: ठीक हो गया — issue बंद करो
+        if: steps.health.outputs.ok == 'false' && steps.restart.outputs.restarted == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue list --repo "$GITHUB_REPOSITORY" --label backend-down --state open \
+            --json number -q '.[].number' | while read -r n; do
+              gh issue comment "$n" --repo "$GITHUB_REPOSITORY" \
+                --body "🟢 Backend अपने-आप ठीक हो गया — $(date -u '+%Y-%m-%d %H:%M UTC')"
+              gh issue close "$n" --repo "$GITHUB_REPOSITORY"
+            done
+
+      - name: 🔴 अब भी बंद — alert issue खोलो
+        if: steps.health.outputs.ok == 'false' && steps.restart.outputs.restarted != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create backend-down --repo "$GITHUB_REPOSITORY" --color B60205 \
+            --description "Sanskriti backend जवाब नहीं दे रहा" 2>/dev/null || true
+          body="🔴 **Sanskriti backend जवाब नहीं दे रहा** — $(date -u '+%Y-%m-%d %H:%M UTC')
+
+          - health URL: $HEALTH_URL
+          - auto-restart: कोशिश की गई, फिर भी ठीक नहीं हुआ
+
+          जाँच का तरीका: memory में \`deferred/learnings/08-nov-backend-hang.md\` देखें।"
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --label backend-down --state open \
+            --json number -q '.[].number' | head -1)
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --label backend-down \
+              --title "🔴 Backend down — $(date -u '+%d %b %Y %H:%M UTC')" --body "$body"
+          fi
+          exit 1
